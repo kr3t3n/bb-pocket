@@ -119,7 +119,7 @@ The browser suite exercises live read APIs at a 390×844 touch viewport: filters
 
 ## iPhone Share Sheet
 
-iOS does not support a PWA's `share_target` manifest registration. Pocket provides a text/link receiving flow for an Apple Shortcut instead. Open **Share to Pocket · setup** in Pocket for instructions and your receiving address.
+iOS does not support a PWA's `share_target` manifest registration. Pocket provides a text/link receiving flow for an Apple Shortcut instead. Open **BB Pocket logo → Share to Pocket setup** in Pocket for instructions and your receiving address.
 
 Create **Send to BB Pocket** in Apple Shortcuts, enable **Show in Share Sheet**, and accept **Text** and **URLs**. Add these actions:
 
@@ -136,7 +136,7 @@ This opens the Pocket website in your browser and is not guaranteed to open the 
 
 The text-only Shortcut above remains supported. Sending binary files requires an authenticated upload relay because BB Connect's browser session is not available to Shortcuts' HTTP action. The optional Cloudflare Worker and deployment instructions are in [relay/README.md](relay/README.md); this relay is not automatically deployed by installing Pocket.
 
-Configure `relayUrl`, `relayReadKey` (secret), and `relayUploadKey` (secret) in Pocket settings. The read key stays on the server. **Share to Pocket · setup → Set up files, images and media** provides the upload URL, copyable upload authorization header, and receiving URL to configure one Shortcut. Do not share a configured Shortcut containing your upload key. Rotate that key in both the Worker and Pocket if exposed.
+Configure `relayUrl`, `relayReadKey` (secret), and `relayUploadKey` (secret) in Pocket settings. The read key stays on the server. **BB Pocket logo → Share to Pocket setup → Set up files, images and media** provides the upload URL, copyable upload authorization header, and receiving URL to configure one Shortcut. Do not share a configured Shortcut containing your upload key. Rotate that key in both the Worker and Pocket if exposed.
 
 Shared files are imported into BB's attachment storage only after you choose a thread. Retrying an import reuses the existing attachment IDs. Review the draft and send explicitly. The relay retains staged files for at most 24 hours when its required R2 lifecycle rule is configured. The server also refuses reads after 24 hours. Text and URLs may be uploaded as text files; preserve rich formatting by exporting rich text to HTML before upload. Original PDFs, media and files should be uploaded unchanged.
 
