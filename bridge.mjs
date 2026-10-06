@@ -67,6 +67,7 @@ const server=http.createServer(async(req,res)=>{
  try{
  if(url.pathname.startsWith('/api/')){
  if(req.method==='POST'&&(req.headers['x-pocket-request']!=='1'||!req.headers['content-type']?.startsWith('application/json')))throw Object.assign(new Error('Invalid request'),{status:403});
+ if(req.method==='GET'&&url.pathname==='/api/usage'){let u=await cached('usage',60000,()=>options.usageLimits?options.usageLimits():bb('system/usage-limits'));if(u.stale){try{await cache.get('usage').pending;const c=cache.get('usage');u={value:c.value,at:c.at,stale:false}}catch(e){u.error=e.message}}return json(res,{providers:u.value,stale:u.stale,warning:u.error||null,syncedAt:u.at},200,req)}
  if(req.method==='GET'&&url.pathname==='/api/meta')return json(res,await meta(),200,req);
  if(req.method==='GET'&&url.pathname==='/api/threads'){
  const [i,l]=await Promise.all([index(),labels()]);const rows=i.value.map(t=>({...t,labels:l.value.memberships[t.id]||[]}));const filtered=filterThreads(rows,Object.fromEntries(q));const offset=Math.max(0,Number(q.get('offset'))||0),limit=Math.min(1000,Math.max(60,Number(q.get('limit'))||60));return json(res,{threads:filtered.slice(offset,offset+limit),total:filtered.length,nextOffset:offset+limit<filtered.length?offset+limit:null,stale:i.stale||l.stale,warning:i.error||l.error||null,syncedAt:Math.min(i.at,l.at)},200,req);

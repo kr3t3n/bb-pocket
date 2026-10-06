@@ -24,6 +24,8 @@ Changes to plugin settings restart Pocket automatically. No separate service or 
 
 ## Features
 
+- Usage limits: expandable provider counters with percentage used and local reset times; refresh every minute while visible, with saved/offline status.
+
 - Threads: title/ID/label search; project, label include/exclude, status, unread and sort filters.
 - **Exclude: automation** by default. Remove it, combine more filters, reset, or save named views. Choices survive reopening.
 - Tasks: search titles/descriptions across tracker projects, filter by project/status, read descriptions and comments, and open linked threads.

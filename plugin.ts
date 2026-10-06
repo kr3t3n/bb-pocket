@@ -57,7 +57,7 @@ export default function pocketPlugin(bb:BbPluginApi) {
    }}
    let server:Awaited<ReturnType<typeof createPocketServer>>|undefined;
    try{
-    server=await createPocketServer({port:config.port,upstream:bb.server.loopbackBaseUrl,bbUrl,publicHost,assets,journalStore});
+    server=await createPocketServer({port:config.port,upstream:bb.server.loopbackBaseUrl,bbUrl,publicHost,assets,journalStore,usageLimits:()=>bb.sdk.system.usageLimits()});
     if(signal.aborted)break;
     if(hostId&&!cliShared)await bb.hosts.declareSharedPorts(hostId,[config.port]);
     current={running:true,port:config.port,url,warning};bb.log.info(`Pocket ready: ${url}`);
