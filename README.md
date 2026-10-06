@@ -31,6 +31,7 @@ Changes to plugin settings restart Pocket automatically. No separate service or 
 - Tasks: search titles/descriptions across tracker projects, filter by project/status, read descriptions and comments, and open linked threads.
 - Projects: both tracker projects and BB projects, full task-project acronyms, and links into tasks/threads.
 - Thread context menu: tap the vertical ⋮ at the right of a row, long-press for 550ms, or right-click. Mirrors Sidebar Pro: copy thread ID/local/cloud links, mark read/unread, pin/unpin, rename, archive/unarchive, and confirmed delete. Long press cancels on scrolling or pointer movement. Menus fetch fresh thread state. **Open in split** requests a split in connected full BB windows, not inside Pocket; a message reports when none receives it. Thread menu actions require the installed plugin.
+- Attachments: use ＋ in the composer for images, media, PDFs and other files. Upload progress, removal, persisted drafts and attachment-only messages are supported. Pasting rich text preserves an HTML file alongside its plain text. Limit: 50 MB per file, 20 files / 100 MB per message. What an agent can interpret depends on its provider.
 - Conversations: paged history, grouped tool activity, messaging, mark as read, and stop agent.
 - Saved drafts, scroll positions and recently visited content. Reconnect on foreground/network return; background polling pauses when hidden.
 - Persistent send receipts prevent automatic duplicate forwarding after interrupted requests or restarts. An ambiguous upstream result stays **unconfirmed**; check the conversation before deliberately sending again.
@@ -67,7 +68,7 @@ Pocket's service worker downloads updated app assets in the background; a subseq
 
 ## Current limitations
 
-- New-thread creation, model controls, approval forms and attachment upload/full attachment display remain in the full BB app. Push notifications are not implemented.
+- New-thread creation, model controls, approval forms and full attachment display remain in the full BB app. Push notifications are not implemented.
 - Thread search covers title/ID/labels, not conversation full-text. Only visible, unarchived threads are indexed.
 - Tasks are read-only. Project navigation uses the linked BB project and matching task-project label when present.
 - Summaries are cached for 15 seconds, labels/projects for 60 seconds, and tasks for 30 seconds. Stale responses trigger a refresh. Visible conversations poll every 3 seconds.
@@ -129,4 +130,14 @@ Create **Send to BB Pocket** in Apple Shortcuts, enable **Show in Share Sheet**,
 
 Choose the shortcut when sharing, then select an existing thread in Pocket. Shared text appends to any existing draft; nothing is automatically sent. Shared text survives reload until used or discarded. The receiving flow accepts up to 20,000 characters; URL length limits can vary, so paste long content directly. Content travels in the URL fragment, not the HTTP request URL, and is removed from the current address after being saved locally.
 
-This opens the Pocket website in your browser and is not guaranteed to open the installed Home Screen app. Browser and installed-app sessions/storage may differ. Sign in to BB Connect if requested; if login loses the share, share again after signing in. Photos/files and creating new threads are not supported. The browser receiving flow is tested; the actual Shortcut handoff still needs a real iPhone check.
+This opens the Pocket website in your browser and is not guaranteed to open the installed Home Screen app. Browser and installed-app sessions/storage may differ. Sign in to BB Connect if requested; if login loses the share, share again after signing in. This text-only Shortcut does not transfer attachments; use the file-sharing flow below for those. Creating new threads is not supported. The browser receiving flow is tested; the actual Shortcut handoff still needs a real iPhone check.
+
+## File sharing from Apple Shortcuts
+
+The text-only Shortcut above remains supported. Sending binary files requires an authenticated upload relay because BB Connect's browser session is not available to Shortcuts' HTTP action. The optional Cloudflare Worker and deployment instructions are in [relay/README.md](relay/README.md); this relay is not automatically deployed by installing Pocket.
+
+Configure `relayUrl`, `relayReadKey` (secret), and `relayUploadKey` (secret) in Pocket settings. The read key stays on the server. **Share to Pocket · setup → Set up files, images and media** provides the upload URL, copyable upload authorization header, and receiving URL to configure one Shortcut. Do not share a configured Shortcut containing your upload key. Rotate that key in both the Worker and Pocket if exposed.
+
+Shared files are imported into BB's attachment storage only after you choose a thread. Retrying an import reuses the existing attachment IDs. Review the draft and send explicitly. The relay retains staged files for at most 24 hours when its required R2 lifecycle rule is configured. The server also refuses reads after 24 hours. Text and URLs may be uploaded as text files; preserve rich formatting by exporting rich text to HTML before upload. Original PDFs, media and files should be uploaded unchanged.
+
+Attachment send receipts include attachment IDs and retain the previous text-only hash format for backwards compatibility. Requests never accept arbitrary server file paths. A failed attachment lookup occurs before a send receipt is created; uncertain upstream sends remain unconfirmed and are never automatically resent.

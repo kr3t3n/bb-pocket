@@ -46,11 +46,18 @@ for(const record of Object.values(journal))if(record.state==='sending')record.st
 let writing=Promise.resolve();function persist(){const snapshot=JSON.stringify(journal);writing=writing.catch(()=>{}).then(async()=>{if(options.journalStore){await options.journalStore.save(JSON.parse(snapshot))}else{await writeFile(journalFile+'.tmp',snapshot,{mode:0o600});await rename(journalFile+'.tmp',journalFile)}});return writing}
 await persist();
 async function sendOnce(threadId,input){
- if(!/^[a-f0-9-]{36}$/i.test(input.id||'')||typeof input.text!=='string'||!input.text.trim()||input.text.length>100000)throw Object.assign(new Error('Invalid message'),{status:400});
- const hash=createHash('sha256').update(threadId+'\0'+input.text).digest('hex');
+ if(!/^[a-f0-9-]{36}$/i.test(input.id||'')||typeof input.text!=='string'||input.text.length>100000)throw Object.assign(new Error('Invalid message'),{status:400});
+ const attachmentIds=input.attachmentIds??[];
+ if(!Array.isArray(attachmentIds)||attachmentIds.length>20||attachmentIds.some(id=>typeof id!=='string'||!/^[a-f0-9-]{36}$/i.test(id))||(!input.text.trim()&&!attachmentIds.length))throw Object.assign(new Error('Invalid message attachments'),{status:400});
+ const hash=createHash('sha256').update(threadId+'\0'+input.text+(attachmentIds.length?'\0'+JSON.stringify(attachmentIds):'')).digest('hex');
+ if(journal[input.id]){if(journal[input.id].hash!==hash)throw Object.assign(new Error('Message identifier already used'),{status:409});return journal[input.id]}
+ if(attachmentIds.length&&!options.attachments)throw Object.assign(new Error('Attachment sending requires the Pocket plugin'),{status:503});
+ const files=attachmentIds.length?await options.attachments.resolve(threadId,attachmentIds):[];
+ if(files.reduce((n,f)=>n+f.sizeBytes,0)>100*1024*1024)throw Object.assign(new Error('Maximum total attachment size is 100 MB'),{status:413});
+ // Recheck after async resolution so concurrent retries still forward only once.
  if(journal[input.id]){if(journal[input.id].hash!==hash)throw Object.assign(new Error('Message identifier already used'),{status:409});return journal[input.id]}
  journal[input.id]={hash,threadId,state:'sending',at:Date.now()};await persist();
- try{const result=await bb(`threads/${threadId}/send`,{input:[{type:'text',text:input.text}],mode:'auto'});journal[input.id]={...journal[input.id],state:'sent',result};}
+ try{const result=await bb(`threads/${threadId}/send`,{input:[...(input.text.trim()?[{type:'text',text:input.text}]:[]),...files.map(f=>f.type==='localImage'?{type:'localImage',path:f.path}:{type:'localFile',path:f.path,name:f.name,mimeType:f.mimeType,sizeBytes:f.sizeBytes})],mode:'auto'});journal[input.id]={...journal[input.id],state:'sent',result};}
  catch(e){journal[input.id]={...journal[input.id],state:'unknown',error:'Delivery could not be confirmed. Check the conversation before sending again.'};}
  await persist();cache.delete('threads');return journal[input.id];
 }
@@ -66,7 +73,7 @@ const server=http.createServer(async(req,res)=>{
  if(url.pathname.startsWith('/api/') && (req.headers['sec-fetch-site']==='cross-site' || (req.headers.origin&&!['http://'+host,'https://'+host].includes(req.headers.origin)))){json(res,{error:'Cross-origin request rejected'},403);return}
  try{
  if(url.pathname.startsWith('/api/')){
- if(req.method==='POST'&&(req.headers['x-pocket-request']!=='1'||!req.headers['content-type']?.startsWith('application/json')))throw Object.assign(new Error('Invalid request'),{status:403});
+ if(req.method==='POST'&&!/^\/api\/thread\/[A-Za-z0-9_-]+\/attachments$/.test(url.pathname)&&(req.headers['x-pocket-request']!=='1'||!req.headers['content-type']?.startsWith('application/json')))throw Object.assign(new Error('Invalid request'),{status:403});
  if(req.method==='GET'&&url.pathname==='/api/usage'){let u=await cached('usage',60000,()=>options.usageLimits?options.usageLimits():bb('system/usage-limits'));if(u.stale){try{await cache.get('usage').pending;const c=cache.get('usage');u={value:c.value,at:c.at,stale:false}}catch(e){u.error=e.message}}return json(res,{providers:u.value,stale:u.stale,warning:u.error||null,syncedAt:u.at},200,req)}
  if(req.method==='GET'&&url.pathname==='/api/meta')return json(res,await meta(),200,req);
  if(req.method==='GET'&&url.pathname==='/api/threads'){
@@ -74,6 +81,22 @@ const server=http.createServer(async(req,res)=>{
  }
  if(req.method==='GET'&&url.pathname==='/api/tasks'){
  const t=await tasks();let rows=t.value;const search=(q.get('q')||'').toLowerCase();if(search)rows=rows.filter(t=>(t.key+' '+t.title+' '+t.description).toLowerCase().includes(search));if(q.get('project'))rows=rows.filter(t=>t.projectId===q.get('project'));if(q.get('status'))rows=rows.filter(t=>t.status===q.get('status'));rows=[...rows].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));const offset=Math.max(0,Number(q.get('offset'))||0),limit=Math.min(1000,Math.max(60,Number(q.get('limit'))||60));return json(res,{tasks:rows.slice(offset,offset+limit).map(({description,...t})=>t),total:rows.length,nextOffset:offset+limit<rows.length?offset+limit:null,stale:t.stale,warning:t.error||null,syncedAt:t.at},200,req);
+ }
+ if(req.method==='POST'&&url.pathname==='/api/share-setup'){if(!options.relay)throw Object.assign(Error('File sharing requires the Pocket plugin'),{status:503});return json(res,options.relay.setup(),200,req)}
+ if(req.method==='POST'&&url.pathname==='/api/shared-files'){if(!options.relay)throw Object.assign(Error('File sharing requires the Pocket plugin'),{status:503});const input=await body(req);return json(res,{files:await options.relay.info(input.ids)},200,req)}
+ const importRoute=url.pathname.match(/^\/api\/thread\/([A-Za-z0-9_-]+)\/import-shared$/);
+ if(importRoute&&req.method==='POST'){if(!options.relay)throw Object.assign(Error('File sharing requires the Pocket plugin'),{status:503});const input=await body(req);return json(res,{files:await options.relay.import(importRoute[1],input.ids)},200,req)}
+ const uploadRoute=url.pathname.match(/^\/api\/thread\/([A-Za-z0-9_-]+)\/attachments$/);
+ if(uploadRoute&&req.method==='POST'){
+ if(req.headers['x-pocket-request']!=='1')throw Object.assign(new Error('Invalid request'),{status:403});
+ if(!options.attachments)throw Object.assign(new Error('Uploads require the Pocket plugin'),{status:503});
+ const max=50*1024*1024;let total=0;const chunks=[];
+ if(Number(req.headers['content-length'])>max)throw Object.assign(new Error('Maximum file size is 50 MB'),{status:413});
+ for await(const chunk of req){total+=chunk.length;if(total>max)throw Object.assign(new Error('Maximum file size is 50 MB'),{status:413});chunks.push(chunk)}
+ let name;try{name=decodeURIComponent(String(req.headers['x-pocket-filename']||'attachment'))}catch{throw Object.assign(new Error('Invalid filename'),{status:400})}
+ name=name.replace(/[\/\\\x00-\x1f]/g,'_').slice(0,200)||'attachment';
+ const mime=String(req.headers['content-type']||'application/octet-stream').split(';')[0].slice(0,150);
+ return json(res,await options.attachments.upload(uploadRoute[1],Buffer.concat(chunks),name,mime),200,req);
  }
  const menuRoute=url.pathname.match(/^\/api\/thread\/([A-Za-z0-9_-]+)\/(menu|action)$/);
  if(menuRoute&&safeId(menuRoute[1])){

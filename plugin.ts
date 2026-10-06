@@ -1,19 +1,24 @@
+import {randomUUID} from 'node:crypto';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {readFile} from 'node:fs/promises';
 import type {BbPluginApi} from '@get-bb/plugin-sdk';
 import {z} from 'zod';
+import {createRelayClient} from './relay-client.mjs';
 import {createPocketServer} from './bridge.mjs';
 import assets from './plugin-assets.json';
 
 export default function pocketPlugin(bb:BbPluginApi) {
  const settings=bb.settings.define({
+  relayUrl:{type:'string',label:'Shortcuts upload relay URL',default:''},
+  relayReadKey:{type:'string',label:'Relay read key',secret:true},
+  relayUploadKey:{type:'string',label:'Shortcut upload key',secret:true},
   port:{type:'number',label:'Pocket port',default:8890,experimental_schema:z.number().int().min(1024).max(65535)},
   share:{type:'boolean',label:'Share through owner-authenticated BB Connect',default:true},
   bbUrl:{type:'string',label:'Full BB URL (optional override)',default:''},
  });
  const db=bb.storage.database();
- bb.storage.migrate(db,[`CREATE TABLE IF NOT EXISTS sends (id TEXT PRIMARY KEY, record TEXT NOT NULL)`]);
+ bb.storage.migrate(db,[`CREATE TABLE IF NOT EXISTS sends (id TEXT PRIMARY KEY, record TEXT NOT NULL)`, `CREATE TABLE IF NOT EXISTS attachments (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, record TEXT NOT NULL)`, `CREATE TABLE IF NOT EXISTS share_imports (id TEXT PRIMARY KEY, record TEXT NOT NULL)`]);
  const journalStore={
   load:()=>Object.fromEntries((db.prepare('SELECT id, record FROM sends').all() as {id:string,record:string}[]).map(r=>[r.id,JSON.parse(r.record)])),
   save:(records:Record<string,unknown>)=>db.transaction(()=>{const put=db.prepare('INSERT OR REPLACE INTO sends (id,record) VALUES (?,?)');for(const [id,record]of Object.entries(records))put.run(id,JSON.stringify(record));})(),
@@ -57,7 +62,19 @@ export default function pocketPlugin(bb:BbPluginApi) {
    }}
    let server:Awaited<ReturnType<typeof createPocketServer>>|undefined;
    try{
-    server=await createPocketServer({port:config.port,upstream:bb.server.loopbackBaseUrl,bbUrl,publicHost,assets,journalStore,usageLimits:()=>bb.sdk.system.usageLimits(),threadActions:{
+    const attachmentApi={
+      upload:async(threadId:string,bytes:Uint8Array,filename:string,mimeType:string)=>{
+       const thread=await bb.sdk.threads.get({threadId});
+       const file=await bb.sdk.projects.attachments.upload({projectId:thread.projectId,clientFile:bytes,filename,mimeType});
+       const id=randomUUID();db.prepare('INSERT INTO attachments (id,thread_id,record) VALUES (?,?,?)').run(id,threadId,JSON.stringify(file));
+       return {id,name:file.name,sizeBytes:file.sizeBytes,mimeType:file.mimeType,type:file.type};
+      },
+      resolve:async(threadId:string,ids:string[])=>ids.map(id=>{const row=db.prepare('SELECT thread_id,record FROM attachments WHERE id=?').get(id) as {thread_id:string,record:string}|undefined;if(!row||row.thread_id!==threadId)throw Object.assign(new Error('Attachment does not belong to this thread'),{status:400});return JSON.parse(row.record)}),
+    };
+    const relayClient=createRelayClient({url:config.relayUrl,readKey:config.relayReadKey,uploadKey:config.relayUploadKey,upload:attachmentApi.upload,
+     load:(id:string)=>{const r=db.prepare('SELECT record FROM share_imports WHERE id=?').get(id) as {record:string}|undefined;return r?JSON.parse(r.record):null},
+     save:(id:string,record:unknown)=>db.prepare('INSERT OR REPLACE INTO share_imports (id,record) VALUES (?,?)').run(id,JSON.stringify(record))});
+    server=await createPocketServer({port:config.port,upstream:bb.server.loopbackBaseUrl,bbUrl,publicHost,assets,journalStore,usageLimits:()=>bb.sdk.system.usageLimits(),attachments:attachmentApi,relay:relayClient,threadActions:{
       get:(threadId:string)=>bb.sdk.threads.get({threadId}),
       children:(threadId:string)=>bb.sdk.threads.childSummary({threadId}),
       read:(threadId:string)=>bb.sdk.threads.markRead({threadId}),
