@@ -1,0 +1,5 @@
+export function compactThread(t){return {id:t.id,title:t.title||t.titleFallback||'Untitled thread',projectId:t.projectId,providerId:t.providerId,status:t.runtime?.displayStatus||t.status,updatedAt:t.updatedAt,pinnedAt:t.pinnedAt,unread:(t.latestAttentionAt||0)>(t.lastReadAt||0),hasPendingInteraction:t.hasPendingInteraction,parentThreadId:t.parentThreadId}}
+export function filterThreads(rows,f={}){
+ const include=(f.include||'').split(',').filter(Boolean),exclude=(f.exclude??'automation').split(',').filter(Boolean),q=(f.q||'').toLowerCase();
+ return rows.filter(t=>(!q||(t.title+' '+t.id+' '+t.labels.join(' ')).toLowerCase().includes(q))&&(!f.project||t.projectId===f.project)&&(!f.status||(f.status==='attention'?t.hasPendingInteraction:f.status==='running'?['active','starting','stopping'].includes(t.status):t.status===f.status))&&(f.unread!=='true'||t.unread)&&include.every(l=>t.labels.includes(l))&&!exclude.some(l=>t.labels.includes(l))).sort((a,b)=>f.sort==='oldest'?a.updatedAt-b.updatedAt:f.sort==='pinned'?Number(!!b.pinnedAt)-Number(!!a.pinnedAt)||b.updatedAt-a.updatedAt:b.updatedAt-a.updatedAt);
+}

@@ -1,0 +1,15 @@
+[Unit]
+Description=BB Pocket mobile PWA
+After=network.target
+
+[Service]
+# Replace both paths for your installation.
+WorkingDirectory=/path/to/bb-pocket
+EnvironmentFile=/path/to/bb-pocket/.env
+ExecStart=/usr/bin/node server.mjs
+Restart=on-failure
+RestartSec=3
+UMask=0077
+
+[Install]
+WantedBy=default.target

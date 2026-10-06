@@ -1,0 +1,13 @@
+import test from 'node:test';import assert from 'node:assert/strict';import http from 'node:http';import {spawn} from 'node:child_process';import {mkdtemp,rm} from 'node:fs/promises';import {tmpdir} from 'node:os';import path from 'node:path';
+test('send journal survives lost responses and restarts; rejects CSRF and conflicting retries',async()=>{
+ let calls=0;const fake=http.createServer(async(req,res)=>{calls++;let incoming='';for await(const c of req)incoming+=c;if(incoming.includes('DROP_RESPONSE')){req.socket.destroy();return}await new Promise(r=>setTimeout(r,100));res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({queued:false,requestId:'test-request'}))});await new Promise(r=>fake.listen(18891,'127.0.0.1',r));
+ const dir=await mkdtemp(path.join(tmpdir(),'pocket-test-'));let child;const start=async()=>{child=spawn(process.execPath,['server.mjs'],{env:{...process.env,PORT:'18890',BB_UPSTREAM:'http://127.0.0.1:18891',POCKET_DATA_DIR:dir},stdio:'pipe'});await new Promise((resolve,reject)=>{child.stdout.once('data',resolve);child.once('error',reject);child.once('exit',code=>reject(new Error('server exited '+code)))})};
+ const stop=async()=>{child.kill();await new Promise(r=>child.once('exit',r))};
+ const request=(body,headers={})=>fetch('http://127.0.0.1:18890/api/thread/test/send',{method:'POST',headers:{'content-type':'application/json','x-pocket-request':'1',...headers},body:JSON.stringify(body)});
+ try{await start();const msg={id:'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',text:'Test on isolated fake BB only'};
+ const results=await Promise.all([request(msg).then(r=>r.json()),request(msg).then(r=>r.json())]);assert.equal(calls,1);assert(results.some(r=>r.state==='sent'));await stop();await start();assert.equal((await (await request(msg)).json()).state,'sent');assert.equal(calls,1);
+ assert.equal((await request({...msg,text:'Conflicting text'})).status,409);assert.equal((await request({...msg,id:'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'},{origin:'https://evil.example'})).status,403);assert.equal(calls,1);
+ const status=await fetch('http://127.0.0.1:18890/api/thread/test/delivery?id='+msg.id).then(r=>r.json());assert.equal(status.state,'sent');
+ const ambiguous={id:'cccccccc-cccc-cccc-cccc-cccccccccccc',text:'DROP_RESPONSE'};assert.equal((await(await request(ambiguous)).json()).state,'unknown');assert.equal(calls,2);await stop();await start();assert.equal((await(await request(ambiguous)).json()).state,'unknown');assert.equal(calls,2);
+ }finally{await stop();await new Promise(r=>fake.close(r));await rm(dir,{recursive:true,force:true})}
+});
