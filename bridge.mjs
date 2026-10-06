@@ -75,6 +75,25 @@ const server=http.createServer(async(req,res)=>{
  if(req.method==='GET'&&url.pathname==='/api/tasks'){
  const t=await tasks();let rows=t.value;const search=(q.get('q')||'').toLowerCase();if(search)rows=rows.filter(t=>(t.key+' '+t.title+' '+t.description).toLowerCase().includes(search));if(q.get('project'))rows=rows.filter(t=>t.projectId===q.get('project'));if(q.get('status'))rows=rows.filter(t=>t.status===q.get('status'));rows=[...rows].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));const offset=Math.max(0,Number(q.get('offset'))||0),limit=Math.min(1000,Math.max(60,Number(q.get('limit'))||60));return json(res,{tasks:rows.slice(offset,offset+limit).map(({description,...t})=>t),total:rows.length,nextOffset:offset+limit<rows.length?offset+limit:null,stale:t.stale,warning:t.error||null,syncedAt:t.at},200,req);
  }
+ const menuRoute=url.pathname.match(/^\/api\/thread\/([A-Za-z0-9_-]+)\/(menu|action)$/);
+ if(menuRoute&&safeId(menuRoute[1])){
+ const id=menuRoute[1],actions=options.threadActions;
+ if(!actions)throw Object.assign(new Error('Thread menus require the Pocket plugin'),{status:503});
+ if(req.method==='GET'&&menuRoute[2]==='menu'){
+ const t=await actions.get(id);const project=(await cached('projects',60000,()=>bb('projects'))).value.find(p=>p.id===t.projectId);
+ const threadPath=project?.isPersonal||t.projectId==='proj_personal'?`/threads/${id}`:`/projects/${t.projectId}/threads/${id}`;
+ const cloud=new URL(publicBbUrl);return json(res,{thread:{...compactThread(t),archivedAt:t.archivedAt},localLink:new URL(threadPath,upstream).href,cloudLink:cloud.hostname==='localhost'||cloud.hostname==='127.0.0.1'?null:new URL(threadPath,cloud).href},200,req);
+ }
+ if(req.method==='POST'&&menuRoute[2]==='action'){
+ const input=await body(req),allowed=['read','unread','pin','unpin','rename','archive','unarchive','delete','split','children'];
+ if(!allowed.includes(input.action))throw Object.assign(new Error('Invalid thread action'),{status:400});
+ if(input.action==='rename'&&(typeof input.title!=='string'||!input.title.trim()||input.title.length>500))throw Object.assign(new Error('Enter a title between 1 and 500 characters'),{status:400});
+ if(input.action==='delete'&&(input.confirmed!==true||typeof input.childThreadsConfirmed!=='boolean'))throw Object.assign(new Error('Deletion must be confirmed'),{status:400});
+ const result=await actions[input.action](id,input.action==='rename'?{title:input.title.trim()}:input.action==='delete'?{childThreadsConfirmed:input.childThreadsConfirmed}:{});
+ if(!['children','split'].includes(input.action))cache.delete('threads');
+ return json(res,{result},200,req);
+ }
+ }
  const m=url.pathname.match(/^\/api\/(thread|task)\/([A-Za-z0-9_-]+)(?:\/(timeline|send|stop|read|delivery))?$/);
  if(m&&safeId(m[2])){const [,kind,id,action]=m;
  if(kind==='task'&&req.method==='GET'){const [task,comments,threads]=await Promise.all([rpc('tasks','getTask',{taskId:id}),rpc('tasks','listComments',{taskId:id}),rpc('tasks','listTaskThreads',{taskId:id})]);return json(res,{...task,...comments,...threads},200,req)}

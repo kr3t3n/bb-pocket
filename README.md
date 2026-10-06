@@ -30,6 +30,7 @@ Changes to plugin settings restart Pocket automatically. No separate service or 
 - **Exclude: automation** by default. Remove it, combine more filters, reset, or save named views. Choices survive reopening.
 - Tasks: search titles/descriptions across tracker projects, filter by project/status, read descriptions and comments, and open linked threads.
 - Projects: both tracker projects and BB projects, full task-project acronyms, and links into tasks/threads.
+- Thread context menu: tap the vertical ⋮ at the right of a row, long-press for 550ms, or right-click. Mirrors Sidebar Pro: copy thread ID/local/cloud links, mark read/unread, pin/unpin, rename, archive/unarchive, and confirmed delete. Long press cancels on scrolling or pointer movement. Menus fetch fresh thread state. **Open in split** requests a split in connected full BB windows, not inside Pocket; a message reports when none receives it. Thread menu actions require the installed plugin.
 - Conversations: paged history, grouped tool activity, messaging, mark as read, and stop agent.
 - Saved drafts, scroll positions and recently visited content. Reconnect on foreground/network return; background polling pauses when hidden.
 - Persistent send receipts prevent automatic duplicate forwarding after interrupted requests or restarts. An ambiguous upstream result stays **unconfirmed**; check the conversation before deliberately sending again.
@@ -113,7 +114,7 @@ For browser tests, run Pocket with Tasks and Labels Pro data, and install Chromi
 POCKET_TEST_URL=http://127.0.0.1:8890 npm run test:browser
 ```
 
-The browser suite exercises live read APIs at a 390×844 touch viewport: filters/search, draft persistence, offline reload/reconnect, tasks and project navigation. Sends are intercepted with mock responses, never sent to live agents. Screenshots and live state are excluded from Git.
+The browser suite exercises live read APIs at a 390×844 touch viewport: filters/search, draft persistence, offline reload/reconnect, tasks and project navigation. Sends are intercepted with mock responses, never sent to live agents. The additional menu browser suite mocks every API request and tests menu parity, long press, scroll cancellation, pin state, rename and deletion confirmation. The bridge suite checks action validation and cross-origin rejection; it never changes live threads. Screenshots and live state are excluded from Git.
 
 ## iPhone Share Sheet
 

@@ -57,7 +57,19 @@ export default function pocketPlugin(bb:BbPluginApi) {
    }}
    let server:Awaited<ReturnType<typeof createPocketServer>>|undefined;
    try{
-    server=await createPocketServer({port:config.port,upstream:bb.server.loopbackBaseUrl,bbUrl,publicHost,assets,journalStore,usageLimits:()=>bb.sdk.system.usageLimits()});
+    server=await createPocketServer({port:config.port,upstream:bb.server.loopbackBaseUrl,bbUrl,publicHost,assets,journalStore,usageLimits:()=>bb.sdk.system.usageLimits(),threadActions:{
+      get:(threadId:string)=>bb.sdk.threads.get({threadId}),
+      children:(threadId:string)=>bb.sdk.threads.childSummary({threadId}),
+      read:(threadId:string)=>bb.sdk.threads.markRead({threadId}),
+      unread:(threadId:string)=>bb.sdk.threads.markUnread({threadId}),
+      pin:(threadId:string)=>bb.sdk.threads.pin({threadId}),
+      unpin:(threadId:string)=>bb.sdk.threads.unpin({threadId}),
+      rename:(threadId:string,input:{title:string})=>bb.sdk.threads.update({threadId,title:input.title}),
+      archive:(threadId:string)=>bb.sdk.threads.archive({threadId}),
+      unarchive:(threadId:string)=>bb.sdk.threads.unarchive({threadId}),
+      delete:(threadId:string,input:{childThreadsConfirmed:boolean})=>bb.sdk.threads.delete({threadId,childThreadsConfirmed:input.childThreadsConfirmed}),
+      split:(threadId:string)=>bb.sdk.threads.open({threadId,split:'right',file:null}),
+    }});
     if(signal.aborted)break;
     if(hostId&&!cliShared)await bb.hosts.declareSharedPorts(hostId,[config.port]);
     current={running:true,port:config.port,url,warning};bb.log.info(`Pocket ready: ${url}`);
