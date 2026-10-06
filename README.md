@@ -114,3 +114,18 @@ POCKET_TEST_URL=http://127.0.0.1:8890 npm run test:browser
 ```
 
 The browser suite exercises live read APIs at a 390×844 touch viewport: filters/search, draft persistence, offline reload/reconnect, tasks and project navigation. Sends are intercepted with mock responses, never sent to live agents. Screenshots and live state are excluded from Git.
+
+## iPhone Share Sheet
+
+iOS does not support a PWA's `share_target` manifest registration. Pocket provides a text/link receiving flow for an Apple Shortcut instead. Open **Share to Pocket · setup** in Pocket for instructions and your receiving address.
+
+Create **Send to BB Pocket** in Apple Shortcuts, enable **Show in Share Sheet**, and accept **Text** and **URLs**. Add these actions:
+
+1. **Get Text from Input**, using **Shortcut Input**.
+2. **URL Encode**, using that text.
+3. **Text** containing `https://YOUR-POCKET-HOST/#share?text=` followed immediately by the **URL Encoded Text** variable.
+4. **Open URLs**, using the Text action's output.
+
+Choose the shortcut when sharing, then select an existing thread in Pocket. Shared text appends to any existing draft; nothing is automatically sent. Shared text survives reload until used or discarded. The receiving flow accepts up to 20,000 characters; URL length limits can vary, so paste long content directly. Content travels in the URL fragment, not the HTTP request URL, and is removed from the current address after being saved locally.
+
+This opens the Pocket website in your browser and is not guaranteed to open the installed Home Screen app. Browser and installed-app sessions/storage may differ. Sign in to BB Connect if requested; if login loses the share, share again after signing in. Photos/files and creating new threads are not supported. The browser receiving flow is tested; the actual Shortcut handoff still needs a real iPhone check.
