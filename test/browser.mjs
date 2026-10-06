@@ -8,8 +8,14 @@ const b=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||(exists
 const context=await b.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,deviceScaleFactor:1});
 const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
 try{
+ let pendingUsage;await page.route('**/api/usage',r=>{pendingUsage=r});
  await page.goto(BASE);await page.locator('[data-thread]').first().waitFor();
  assert(await page.getByText('Exclude: automation').isVisible());
+ await page.locator('.workspaceheader .usage summary').click();assert(await page.getByText('Fetching provider counters. This can take a few seconds.',{exact:true}).isVisible());assert.equal(await page.getByText('No provider counters available.',{exact:true}).count(),0);
+ while(!pendingUsage)await page.waitForTimeout(10);
+ await pendingUsage.fulfill({json:{providers:{codex:{status:'ok',windows:[{label:'Weekly limit',usedPercent:24,resetsAt:null}]},'claude-code':{status:'ok',windows:[{label:'Current session',usedPercent:15,resetsAt:null}]},'acp-cursor':{status:'ok',windows:[{label:'Plan usage',usedPercent:84,resetsAt:null}]}},syncedAt:Date.now(),stale:false}});
+ await page.locator('.workspaceheader .usagepill').nth(2).waitFor();assert.equal(await page.locator('.workspaceheader .usagepill').count(),3);await page.locator('.usage summary').click();await page.unroute('**/api/usage');
+
  await page.screenshot({path:'test-results/threads.png',fullPage:false});
  await page.getByText('Exclude: automation').click();await page.waitForTimeout(500);await page.reload();await page.locator('[data-thread]').first().waitFor();assert.equal(await page.getByText('Exclude: automation').count(),0);
  await page.getByRole('button',{name:'Filters',exact:true}).click();await page.locator('#statusfilter').selectOption('running');await page.getByRole('button',{name:'Apply filters'}).click();await page.waitForTimeout(400);assert(await page.getByRole('button',{name:'running ×'}).isVisible());
