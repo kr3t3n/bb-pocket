@@ -82,10 +82,6 @@ const server=http.createServer(async(req,res)=>{
  if(req.method==='GET'&&url.pathname==='/api/tasks'){
  const t=await tasks();let rows=t.value;const search=(q.get('q')||'').toLowerCase();if(search)rows=rows.filter(t=>(t.key+' '+t.title+' '+t.description).toLowerCase().includes(search));if(q.get('project'))rows=rows.filter(t=>t.projectId===q.get('project'));if(q.get('status'))rows=rows.filter(t=>t.status===q.get('status'));rows=[...rows].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));const offset=Math.max(0,Number(q.get('offset'))||0),limit=Math.min(1000,Math.max(60,Number(q.get('limit'))||60));return json(res,{tasks:rows.slice(offset,offset+limit).map(({description,...t})=>t),total:rows.length,nextOffset:offset+limit<rows.length?offset+limit:null,stale:t.stale,warning:t.error||null,syncedAt:t.at},200,req);
  }
- if(req.method==='POST'&&url.pathname==='/api/share-setup'){if(!options.relay)throw Object.assign(Error('File sharing requires the Pocket plugin'),{status:503});return json(res,options.relay.setup(),200,req)}
- if(req.method==='POST'&&url.pathname==='/api/shared-files'){if(!options.relay)throw Object.assign(Error('File sharing requires the Pocket plugin'),{status:503});const input=await body(req);return json(res,{files:await options.relay.info(input.ids)},200,req)}
- const importRoute=url.pathname.match(/^\/api\/thread\/([A-Za-z0-9_-]+)\/import-shared$/);
- if(importRoute&&req.method==='POST'){if(!options.relay)throw Object.assign(Error('File sharing requires the Pocket plugin'),{status:503});const input=await body(req);return json(res,{files:await options.relay.import(importRoute[1],input.ids)},200,req)}
  const uploadRoute=url.pathname.match(/^\/api\/thread\/([A-Za-z0-9_-]+)\/attachments$/);
  if(uploadRoute&&req.method==='POST'){
  if(req.headers['x-pocket-request']!=='1')throw Object.assign(new Error('Invalid request'),{status:403});
