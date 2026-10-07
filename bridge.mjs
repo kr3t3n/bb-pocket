@@ -61,6 +61,19 @@ async function sendOnce(threadId,input){
  catch(e){journal[input.id]={...journal[input.id],state:'unknown',error:'Delivery could not be confirmed. Check the conversation before sending again.'};}
  await persist();cache.delete('threads');return journal[input.id];
 }
+async function createOnce(input){
+ if(!options.newThread)throw Object.assign(new Error('New threads require the Pocket plugin'),{status:503});
+ if(!input||!/^[a-f0-9-]{36}$/i.test(input.id||''))throw Object.assign(new Error('Invalid request ID'),{status:400});
+ const key='create:'+input.id,hash=createHash('sha256').update(JSON.stringify(input)).digest('hex');
+ const existing=()=>{const r=journal[key];if(r&&r.hash!==hash)throw Object.assign(new Error('Creation identifier already used'),{status:409});return r};
+ if(existing())return existing();
+ const args=await options.newThread.validate(input);
+ if(existing())return existing();
+ journal[key]={hash,state:'sending',at:Date.now()};await persist();
+ try{const thread=await options.newThread.spawn(args);journal[key]={...journal[key],state:'sent',threadId:thread.id};}
+ catch(e){journal[key]={...journal[key],state:'unknown',error:'Creation could not be confirmed. Check the thread list before starting another thread.'};}
+ await persist();cache.delete('threads');return journal[key];
+}
 function json(res,value,status=200,req){const raw=Buffer.from(JSON.stringify(value));const gz=req?.headers['accept-encoding']?.includes('gzip')&&raw.length>1000;res.writeHead(status,{'content-type':'application/json','cache-control':'no-store',...(gz?{'content-encoding':'gzip','vary':'Accept-Encoding'}:{})});res.end(gz?gzipSync(raw):raw)}
 async function body(req){let text='';for await(const chunk of req){text+=chunk;if(text.length>150000)throw Object.assign(new Error('Request too large'),{status:413})}try{return JSON.parse(text)}catch{throw Object.assign(new Error('Invalid JSON'),{status:400})}}
 const safeId=s=>/^[A-Za-z0-9_-]{1,100}$/.test(s);
@@ -75,6 +88,10 @@ const server=http.createServer(async(req,res)=>{
  if(url.pathname.startsWith('/api/')){
  if(req.method==='POST'&&!/^\/api\/thread\/[A-Za-z0-9_-]+\/attachments$/.test(url.pathname)&&(req.headers['x-pocket-request']!=='1'||!req.headers['content-type']?.startsWith('application/json')))throw Object.assign(new Error('Invalid request'),{status:403});
  if(req.method==='GET'&&url.pathname==='/api/usage'){let u=await cached('usage',60000,()=>options.usageLimits?options.usageLimits():bb('system/usage-limits'));if(u.stale){try{await cache.get('usage').pending;const c=cache.get('usage');u={value:c.value,at:c.at,stale:false}}catch(e){u.error=e.message}}return json(res,{providers:u.value,stale:u.stale,warning:u.error||null,syncedAt:u.at},200,req)}
+ if(url.pathname==='/api/new-thread/projects'&&req.method==='GET'){if(!options.newThread)throw Object.assign(new Error('New threads require the Pocket plugin'),{status:503});return json(res,{projects:await options.newThread.projects()},200,req)}
+ if(url.pathname==='/api/new-thread/options'&&req.method==='GET'){if(!options.newThread)throw Object.assign(new Error('New threads require the Pocket plugin'),{status:503});return json(res,await options.newThread.catalog(Object.fromEntries(q)),200,req)}
+ if(url.pathname==='/api/new-thread'&&req.method==='POST')return json(res,await createOnce(await body(req)),200,req);
+ if(url.pathname==='/api/new-thread/receipt'&&req.method==='GET')return json(res,journal['create:'+q.get('id')]||{state:'missing'},200,req);
  if(req.method==='GET'&&url.pathname==='/api/meta')return json(res,await meta(),200,req);
  if(req.method==='GET'&&url.pathname==='/api/threads'){
  const [i,l]=await Promise.all([index(),labels()]);const rows=i.value.map(t=>({...t,labels:l.value.memberships[t.id]||[]}));const filtered=filterThreads(rows,Object.fromEntries(q));const offset=Math.max(0,Number(q.get('offset'))||0),limit=Math.min(1000,Math.max(60,Number(q.get('limit'))||60));return json(res,{threads:filtered.slice(offset,offset+limit),total:filtered.length,nextOffset:offset+limit<filtered.length?offset+limit:null,stale:i.stale||l.stale,warning:i.error||l.error||null,syncedAt:Math.min(i.at,l.at)},200,req);

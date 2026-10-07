@@ -32,6 +32,7 @@ Changes to plugin settings restart Pocket automatically. No separate service or 
 - Projects: both tracker projects and BB projects, full task-project acronyms, and links into tasks/threads.
 - Thread context menu: tap the vertical ⋮ at the right of a row, long-press for 550ms, or right-click. Mirrors Sidebar Pro: copy thread ID/local/cloud links, mark read/unread, pin/unpin, rename, archive/unarchive, and confirmed delete. Long press cancels on scrolling or pointer movement. Menus fetch fresh thread state. **Open in split** requests a split in connected full BB windows, not inside Pocket; a message reports when none receives it. Thread menu actions require the installed plugin.
 - Attachments: use ＋ in the composer for images, media, PDFs and other files. Upload progress, removal, persisted drafts and attachment-only messages are supported. Pasting rich text preserves an HTML file alongside its plain text. Limit: 50 MB per file, 20 files / 100 MB per message. What an agent can interpret depends on its provider.
+- New threads: choose project, default or existing workspace, provider, live model, supported effort, permissions and service tier. Enter an optional title and first message, then Start thread. Drafts persist; creation receipts prevent duplicate starts after interrupted requests. Unconfirmed creation is never automatically retried.
 - Conversations: paged history, grouped tool activity, messaging, mark as read, and stop agent.
 - Saved drafts, scroll positions and recently visited content. Reconnect on foreground/network return; background polling pauses when hidden.
 - Persistent send receipts prevent automatic duplicate forwarding after interrupted requests or restarts. An ambiguous upstream result stays **unconfirmed**; check the conversation before deliberately sending again.
@@ -68,7 +69,7 @@ Pocket's service worker downloads updated app assets in the background; a subseq
 
 ## Current limitations
 
-- New-thread creation, model controls, approval forms and full attachment display remain in the full BB app. Push notifications are not implemented.
+- Changing an existing thread’s model, approval forms and full attachment display remain in the full BB app. Push notifications are not implemented.
 - Thread search covers title/ID/labels, not conversation full-text. Only visible, unarchived threads are indexed.
 - Tasks are read-only. Project navigation uses the linked BB project and matching task-project label when present.
 - Summaries are cached for 15 seconds, labels/projects for 60 seconds, and tasks for 30 seconds. Stale responses trigger a refresh. Visible conversations poll every 3 seconds.
@@ -130,6 +131,8 @@ Create **Send to BB Pocket** in Apple Shortcuts, enable **Show in Share Sheet**,
 
 Choose the shortcut when sharing, then select an existing thread in Pocket. Shared text appends to any existing draft; nothing is automatically sent. Shared text survives reload until used or discarded. The receiving flow accepts up to 20,000 characters; URL length limits can vary, so paste long content directly. Content travels in the URL fragment, not the HTTP request URL, and is removed from the current address after being saved locally.
 
-This opens the Pocket website in your browser and is not guaranteed to open the installed Home Screen app. Browser and installed-app sessions/storage may differ. Sign in to BB Connect if requested; if login loses the share, share again after signing in. This Shortcut shares text and URLs only; upload images, media, PDFs and other files directly with the ＋ button inside a Pocket conversation. No relay or extra service is needed. Creating new threads is not supported. The browser receiving flow is tested; the actual Shortcut handoff still needs a real iPhone check.
+This opens the Pocket website in your browser and is not guaranteed to open the installed Home Screen app. Browser and installed-app sessions/storage may differ. Sign in to BB Connect if requested; if login loses the share, share again after signing in. This Shortcut shares text and URLs only; upload images, media, PDFs and other files directly with the ＋ button inside a Pocket conversation. No relay or extra service is needed. The browser receiving flow is tested; the actual Shortcut handoff still needs a real iPhone check.
 
 Attachment send receipts include attachment IDs and retain the previous text-only hash format for backwards compatibility. Requests never accept arbitrary server file paths. A failed attachment lookup occurs before a send receipt is created; uncertain upstream sends remain unconfirmed and are never automatically resent.
+
+New-thread tests mock every creation. They check provider/model capability validation, workspace ownership, duplicate requests, uncertain outcomes, saved drafts, selection changes and keyboard viewport geometry. Real iPhone keyboard animation still needs a device check.
