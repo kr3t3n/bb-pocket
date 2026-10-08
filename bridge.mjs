@@ -148,6 +148,8 @@ const server=http.createServer(async(req,res)=>{
  }
  if(req.method!=='GET'&&req.method!=='HEAD')return json(res,{error:'Method not allowed'},405);
  const routes={'/':'index.html','/index.html':'index.html','/app.js':'app.js','/style.css':'style.css','/sw.js':'sw.js','/manifest.webmanifest':'manifest.webmanifest','/logo.svg':'logo.svg','/apple-touch-icon.png':'apple-touch-icon.png','/favicon-32.png':'favicon-32.png','/icon.svg':'icon.svg','/icon-192.png':'icon-192.png','/icon-512.png':'icon-512.png'};
+ routes['/theme-init.js']='theme-init.js';routes['/themes.css']='themes.css';
+ for(const theme of ['opus','sol','astra','grok']){routes[`/themes/${theme}/app.js`]=`themes/${theme}/app.js`;if(theme!=='opus')routes[`/themes/${theme}/style.css`]=`themes/${theme}/style.css`}
  const file=routes[url.pathname];if(!file)return json(res,{error:'Not found'},404);
  const bytes=options.assets?Buffer.from(options.assets[file],'base64'):await readFile(path.join(root,'public',file));const mime=file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':file.endsWith('.png')?'image/png':file.endsWith('.svg')?'image/svg+xml':file.endsWith('webmanifest')?'application/manifest+json':'text/html';
  res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");

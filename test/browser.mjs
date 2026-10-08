@@ -6,6 +6,8 @@ await mkdir('test-results',{recursive:true});
 const BASE=process.env.POCKET_TEST_URL||'http://127.0.0.1:8890';
 const b=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||(existsSync('/snap/bin/chromium')?'/snap/bin/chromium':undefined),headless:true,args:['--no-sandbox']});
 const context=await b.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,deviceScaleFactor:1});
+// Exercise the Sol layout's existing details/select controls; themes-browser covers all four layouts.
+await context.addInitScript(()=>{if(!localStorage.getItem('pocket:theme'))localStorage.setItem('pocket:theme',JSON.stringify('sol'))});
 const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
 try{
  let pendingUsage;await page.route('**/api/usage',r=>{pendingUsage=r});

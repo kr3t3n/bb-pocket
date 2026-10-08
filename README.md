@@ -24,6 +24,8 @@ Changes to plugin settings restart Pocket automatically. No separate service or 
 
 ## Features
 
+- **Opus 5.5 is the default design.** Tap the Pocket logo → **Themes** to switch to Sol 6.1, 6-Astra or Grok 4.7. Each keeps its distinct layout, not just its colors. Your choice is saved on this device; drafts, attachments, filters and new-thread settings carry across themes. All four designs are cached for offline switching after installation.
+
 - Usage limits: compact header counters (tap to expand) with percentage remaining and local reset times; refresh every minute while visible, with saved/offline status. Slow requests show a retry state after 12 seconds; failed reads retry on the next visible poll (15 seconds on the home screen).
 
 - Threads: title/ID/label search; project, label include/exclude, status, unread and sort filters.
@@ -89,6 +91,8 @@ npm test
 
 `npm run build` builds the PWA, embeds its assets, updates the service-worker cache version, and runs `bb plugin build`. Commit `plugin-assets.json` and `public/` after UI changes: Git installs build the plugin backend with production dependencies only, using those prebuilt web assets.
 
+The default Opus frontend lives in `src/app.js`, `src/new-thread.js`, `src/ui.js` and `public/style.css`. Alternate layouts live in `src/themes/{sol,astra,grok}/`. They share storage, provider icons, the theme picker and the same API. `src/bootstrap.js` loads only the selected layout; `build.mjs` builds and caches all four. Frontend behavior changes should be checked across all themes.
+
 The plugin backend is `plugin.ts`; the reusable HTTP bridge is `bridge.mjs`. `server.mjs` remains an optional standalone launcher:
 
 ```sh
@@ -116,7 +120,7 @@ For browser tests, run Pocket with Tasks and Labels Pro data, and install Chromi
 POCKET_TEST_URL=http://127.0.0.1:8890 npm run test:browser
 ```
 
-The browser suite exercises live read APIs at a 390×844 touch viewport: filters/search, draft persistence, offline reload/reconnect, tasks and project navigation. Sends are intercepted with mock responses, never sent to live agents. The additional menu browser suite mocks every API request and tests menu parity, long press, scroll cancellation, pin state, rename and deletion confirmation. The bridge suite checks action validation and cross-origin rejection; it never changes live threads. Screenshots and live state are excluded from Git.
+The browser suite exercises the Sol layout with live read APIs at a 390×844 touch viewport: filters/search, draft persistence, offline reload/reconnect, tasks and project navigation. Sends are intercepted with mock responses, never sent to live agents. The additional menu browser suite mocks every API request and tests menu parity, long press, scroll cancellation, pin state, rename and deletion confirmation. The theme suite mocks every API and checks all four layouts, shared drafts/attachments/filters, new-thread drafts, usage counters, narrow screens, keyboard geometry and offline theme switching. The menu, attachment and creation suites also exercise the default Opus layout. The bridge suite checks action validation and cross-origin rejection; it never changes live threads. Screenshots and live state are excluded from Git.
 
 ## iPhone Share Sheet
 
