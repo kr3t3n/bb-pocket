@@ -1,3 +1,4 @@
+import {setupViewport} from '../../viewport.js';
 import {openThemeMenu} from '../../themes.js';
 import {setupNewThread} from './new-thread.js';
 import {providerIcons} from '../../provider-icons.js';
@@ -161,7 +162,6 @@ document.addEventListener('click',async e=>{const b=e.target.closest('button');i
  if(action==='stop'){b.disabled=true;try{await api(`thread/${threadId}/stop`,{});sheet.close();await refreshThread();toast('Stop requested')}catch(e){toast(e.message);b.disabled=false}}
 });
 window.addEventListener('popstate',handleRoute);window.addEventListener('hashchange',()=>{if(location.hash.startsWith('#share?'))handleRoute()});window.addEventListener('online',()=>{syncText('Reconnecting');refresh()});window.addEventListener('offline',()=>syncText('Offline · saved',true));document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh()});window.addEventListener('pageshow',e=>{if(e.persisted)refresh()});
-function viewport(){const v=window.visualViewport;const height=v?.height||innerHeight;document.documentElement.style.setProperty('--app-height',height+'px');document.documentElement.style.setProperty('--app-top',(v?.offsetTop||0)+'px');document.documentElement.style.setProperty('--keyboard-inset',innerHeight-height>120?'0px':'env(safe-area-inset-bottom)')}
-window.visualViewport?.addEventListener('resize',viewport);window.visualViewport?.addEventListener('scroll',viewport);window.addEventListener('resize',viewport);document.addEventListener('focusin',viewport);document.addEventListener('focusout',()=>requestAnimationFrame(viewport));viewport();
+setupViewport();
 async function tick(){if(!document.hidden){refreshUsage();try{if(threadId)await refreshThread();else if(!route.startsWith('task/')&&tab!=='projects')await loadHome()}catch{}}pollTimer=setTimeout(tick,threadId?3000:15000)}
 async function init(){meta=await get('meta')||meta;usage=await get('usage');if(usage)usage={...usage,stale:true};handleRoute();refreshUsage(true);await refreshMeta();tick();if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{})}init();

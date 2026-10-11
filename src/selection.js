@@ -22,7 +22,7 @@ export function setupSelectionQuote(){
   const draft=document.querySelector('#draft');if(!draft||!selected||route!==location.hash||document.querySelector('dialog[open]'))return hide();
   const quote=selected.split(/\r?\n/).map(line=>'> '+line).join('\n');
   draft.value=(draft.value?draft.value.replace(/\s+$/,'')+'\n\n':'')+quote+'\n\n';
-  hide();getSelection()?.removeAllRanges();draft.dispatchEvent(new Event('input',{bubbles:true}));draft.focus();draft.setSelectionRange(draft.value.length,draft.value.length);
+  hide();getSelection()?.removeAllRanges();draft.dispatchEvent(new Event('input',{bubbles:true}));draft.focus({preventScroll:true});draft.setSelectionRange(draft.value.length,draft.value.length);
  }
  // Handle touchend directly; do not depend on Safari synthesizing a click
  // after a tap dismisses its native callout. Clearing selected prevents doubles.
