@@ -68,7 +68,7 @@ bb plugin update pocket
 
 Git installs track this repository's default branch. Versioned releases are also available, e.g. `git:https://github.com/kr3t3n/bb-pocket.git@^0.2.0`.
 
-Pocket's service worker downloads updated app assets in the background; a subsequent full reload uses them. Resuming an already-open Home Screen app can keep its previous frontend until reloaded. The in-app refresh button refreshes data, not the app bundle.
+Pocket's service worker downloads updated app assets in the background; a subsequent full reload uses them. Resuming an already-open Home Screen app can keep its previous frontend until reloaded. The in-app refresh button refreshes data, not the app bundle. If an update does not appear, open `/update` on your Pocket host and tap **Update and open Pocket**. This removes only the app shell cache and service-worker registration; drafts and device settings remain.
 
 ## Current limitations
 
