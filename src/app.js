@@ -109,7 +109,9 @@ function renderHome(){
  renderResults();
 }
 function skeleton(){return `<div class="rows">${Array.from({length:7},()=>'<div class="skeleton"><i></i><span><b></b><b></b></span></div>').join('')}</div>`}
-function renderResults(){const el=$('#results');if(!el||threadId)return;
+let deferredSwipeResults=false;
+document.addEventListener('pocket:swipe-close',()=>{if(deferredSwipeResults){deferredSwipeResults=false;renderResults()}});
+function renderResults(){const el=$('#results');if(!el||threadId)return;if(document.querySelector('.pocket-swipe-visible,.pocket-swipe-dragging')){deferredSwipeResults=true;return}
  if(tab==='projects'){renderProjects();return}
  if(!data){el.innerHTML=skeleton();return}
  const rows=tab==='threads'?data.threads:data.tasks;
@@ -211,7 +213,7 @@ function threadShell(id){
  const cached=data?.threads?.find(t=>t.id===id);
  app.innerHTML=`<section class="threadview enter"><header class="threadhead"><button class="iconbtn ghost" data-action="back" aria-label="Back">${icon('back',2.2)}</button><div class="title"><h2 id="threadtitle">${esc(cached?.title||'Conversation')}</h2><small id="threadsubtitle">${cached?esc(pname(cached.projectId)):'Loading conversation…'}</small></div><button class="iconbtn ghost" data-action="threadmenu" aria-label="Thread actions">${icon('more')}</button></header><div id="threadstrip"></div><div class="messages" id="messages"><div class="convloading"><div class="bubble-skel"></div><div class="bubble-skel me"></div><div class="bubble-skel"></div></div></div><div class="composer"><button class="jump" data-action="jump" aria-label="Jump to latest" hidden>${icon('arrowdown',2)}</button><div id="draftfiles" hidden></div><div id="uploadstatus" role="status" hidden></div><form id="compose"><label class="attachbutton" title="Attach images, media, PDFs or files">${icon('clip')}<input id="attachfiles" type="file" multiple aria-label="Attach files"></label><textarea id="draft" aria-label="Message" placeholder="Message ${esc(cached?providerName(cached.providerId):'your agent')}…" rows="1" enterkeyhint="enter"></textarea><button type="submit" class="sendbtn" aria-label="Send message">${icon('send',2.4)}</button></form></div></section>`;
  const draft=$('#draft');draft.value=read('draft:'+id,'');renderDraftFiles();requestAnimationFrame(()=>autosize(draft));updateSendState();
- const m=$('#messages');m.addEventListener('scroll',()=>{const fromBottom=m.scrollHeight-m.clientHeight-m.scrollTop;save('scroll:'+id,{top:m.scrollTop,bottom:fromBottom<100});$('.jump').hidden=fromBottom<320},{passive:true});
+ const m=$('#messages');m.addEventListener('scroll',()=>{if(!m.isConnected)return;const fromBottom=m.scrollHeight-m.clientHeight-m.scrollTop;save('scroll:'+id,{top:m.scrollTop,bottom:fromBottom<100});$('.jump').hidden=fromBottom<320},{passive:true});
 }
 async function openThread(id){epoch++;threadId=id;threadData=null;olderRows=[];olderCursor=null;threadReady=false;renderedRows='';threadShell(id);const c=await get('thread:'+id);if(threadId!==id)return;if(c){threadData=c;renderThread(true);syncText('Saved · refreshing')}await refreshThread(true);if(pending[id]&&threadId===id)checkDelivery()}
 const timeOf=t=>new Date(t).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
@@ -295,5 +297,5 @@ window.addEventListener('popstate',handleRoute);window.addEventListener('hashcha
 // Track the visual viewport so the composer stays above the iOS keyboard.
 setupViewport();
 setupThreadSwipe({toast,markRead:async id=>{await api(`thread/${id}/action`,{action:'read'});if(!threadId){data=null;await loadHome()}}});
-async function tick(){if(!document.hidden){refreshUsage();try{if(threadId)await refreshThread();else if(!route.startsWith('task/')&&tab!=='projects')await loadHome()}catch{}}pollTimer=setTimeout(tick,threadId?3000:15000)}
+async function tick(){if(!document.hidden){refreshUsage();try{if(threadId)await refreshThread();else if(!route.startsWith('task/')&&tab!=='projects'&&!document.querySelector('.pocket-swipe-visible,.pocket-swipe-dragging'))await loadHome()}catch{}}pollTimer=setTimeout(tick,threadId?3000:15000)}
 async function init(){meta=await get('meta')||meta;usage=await get('usage');if(usage)usage={...usage,stale:true};handleRoute();refreshUsage(true);await refreshMeta();tick();if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{})}init();

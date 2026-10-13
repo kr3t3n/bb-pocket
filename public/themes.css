@@ -7,4 +7,14 @@ html:has(.threadview){height:100%;overflow:hidden;overscroll-behavior:none}
 body:has(.threadview){position:fixed;inset:0;height:100%;min-height:0;overflow:hidden}
 .threadview{position:absolute;top:var(--app-top,0px)}
 
-[data-thread-card]{overflow:hidden}[data-thread-card].pocket-swiping{background:var(--accent,#bcebc4)}[data-thread-card].pocket-swiping::before{content:'✓ Read';position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#102016;font-weight:600;font-size:14px}[data-thread-card].pocket-swiping>[data-thread]{position:relative;background:var(--bg,#101615)}[data-thread-card].pocket-swiping .rowmenu{visibility:hidden}[data-thread-card].pocket-swipe-ready::before{font-weight:800}
+[data-thread-card]{overflow:clip;touch-action:pan-y}
+.pocket-swipe-host>[data-thread],.pocket-swipe-host>.rowmenu{transform:translateX(var(--swipe-x,0px));transition:transform .22s cubic-bezier(.2,.8,.2,1)}
+.pocket-swipe-host>[data-thread]{position:relative;z-index:1;background:var(--swipe-surface)}
+.pocket-swipe-host>.rowmenu{z-index:2}
+.pocket-swipe-dragging>[data-thread],.pocket-swipe-dragging>.rowmenu{transition:none}
+.pocket-swipe-read{position:absolute;inset:0 auto 0 0;width:108px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:#bcebc4;color:#102016;font-size:13px;font-weight:600;visibility:hidden;touch-action:manipulation;border:0;border-radius:0}
+.pocket-swipe-read svg{width:25px;height:25px;flex-shrink:0}
+.pocket-swipe-visible{background:#bcebc4!important}
+.pocket-swipe-visible>.pocket-swipe-read{visibility:visible}
+.pocket-swipe-ready>.pocket-swipe-read{width:100%;align-items:flex-start;padding-left:24px;background:#91d59e}
+@media(prefers-reduced-motion:reduce){.pocket-swipe-host>[data-thread],.pocket-swipe-host>.rowmenu{transition:none}}
