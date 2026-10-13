@@ -28,7 +28,7 @@ Changes to plugin settings restart Pocket automatically. No separate service or 
 
 - Usage limits: compact header counters (tap to expand) with percentage remaining and local reset times; refresh every minute while visible, with saved/offline status. Slow requests show a retry state after 12 seconds; failed reads retry on the next visible poll (15 seconds on the home screen).
 
-- Swipe a thread row right to reveal **Mark as read**, then tap the action. A full right swipe marks it read immediately. Swipe back left or tap the row to close the action. Left swipes on closed rows do nothing; vertical scrolling and long-press menus remain available.
+- Swipe a thread row right to reveal **Mark as read** for unread threads or **Mark as unread** for read threads, then tap the action. A full right swipe performs the displayed action immediately. Swipe back left or tap the row to close the action. Left swipes on closed rows do nothing; vertical scrolling and long-press menus remain available.
 - “Needs input” reflects unanswered blocking interactions. Optional Codex background questions, expired prompts and already-resolving actions do not override the agent’s running status.
 - Threads: title/ID/label search; project, label include/exclude, status, unread and sort filters.
 - **Exclude: automation** by default. Remove it, combine more filters, reset, or save named views. Choices survive reopening.
