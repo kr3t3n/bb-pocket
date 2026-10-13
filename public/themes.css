@@ -6,3 +6,5 @@
 html:has(.threadview){height:100%;overflow:hidden;overscroll-behavior:none}
 body:has(.threadview){position:fixed;inset:0;height:100%;min-height:0;overflow:hidden}
 .threadview{position:absolute;top:var(--app-top,0px)}
+
+[data-thread-card]{overflow:hidden}[data-thread-card].pocket-swiping{background:var(--accent,#bcebc4)}[data-thread-card].pocket-swiping::before{content:'✓ Read';position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#102016;font-weight:600;font-size:14px}[data-thread-card].pocket-swiping>[data-thread]{position:relative;background:var(--bg,#101615)}[data-thread-card].pocket-swiping .rowmenu{visibility:hidden}[data-thread-card].pocket-swipe-ready::before{font-weight:800}

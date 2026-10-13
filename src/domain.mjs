@@ -3,3 +3,8 @@ export function filterThreads(rows,f={}){
  const include=(f.include||'').split(',').filter(Boolean),exclude=(f.exclude??'automation').split(',').filter(Boolean),q=(f.q||'').toLowerCase();
  return rows.filter(t=>(!q||(t.title+' '+t.id+' '+t.labels.join(' ')).toLowerCase().includes(q))&&(!f.project||t.projectId===f.project)&&(!f.status||(f.status==='attention'?t.hasPendingInteraction:f.status==='running'?['active','starting','stopping'].includes(t.status):t.status===f.status))&&(f.unread!=='true'||t.unread)&&include.every(l=>t.labels.includes(l))&&!exclude.some(l=>t.labels.includes(l))).sort((a,b)=>f.sort==='oldest'?a.updatedAt-b.updatedAt:f.sort==='pinned'?Number(!!b.pinnedAt)-Number(!!a.pinnedAt)||b.updatedAt-a.updatedAt:b.updatedAt-a.updatedAt);
 }
+
+// BB's broad active flag also covers optional questions and resolving actions.
+export function requiresUserInput(interactions,now=Date.now()){
+ return interactions.some(i=>i.status==='pending'&&!i.resolvedAt&&(!i.expiresAt||i.expiresAt>now)&&!(i.origin?.pluginId==='provider-codex'&&i.origin?.rendererId==='async-question')&&i.payload?.kind!=='provider-codex/async-question');
+}

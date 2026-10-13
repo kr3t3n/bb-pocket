@@ -1,3 +1,4 @@
+import {setupThreadSwipe} from '../../thread-swipe.js';
 import {setupViewport} from '../../viewport.js';
 import {openThemeMenu} from '../../themes.js';
 import {setupNewThread} from './new-thread.js';
@@ -163,5 +164,6 @@ document.addEventListener('click',async e=>{const b=e.target.closest('button');i
 });
 window.addEventListener('popstate',handleRoute);window.addEventListener('hashchange',()=>{if(location.hash.startsWith('#share?'))handleRoute()});window.addEventListener('online',()=>{syncText('Reconnecting');refresh()});window.addEventListener('offline',()=>syncText('Offline · saved',true));document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh()});window.addEventListener('pageshow',e=>{if(e.persisted)refresh()});
 setupViewport();
+setupThreadSwipe({toast,markRead:async id=>{await api(`thread/${id}/action`,{action:'read'});if(!threadId){data=null;await loadHome()}}});
 async function tick(){if(!document.hidden){refreshUsage();try{if(threadId)await refreshThread();else if(!route.startsWith('task/')&&tab!=='projects')await loadHome()}catch{}}pollTimer=setTimeout(tick,threadId?3000:15000)}
 async function init(){meta=await get('meta')||meta;usage=await get('usage');if(usage)usage={...usage,stale:true};handleRoute();refreshUsage(true);await refreshMeta();tick();if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{})}init();

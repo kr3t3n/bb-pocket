@@ -4,7 +4,7 @@ import {gzipSync} from 'node:zlib';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
-import {filterThreads,compactThread} from './src/domain.mjs';
+import {filterThreads,compactThread,requiresUserInput} from './src/domain.mjs';
 export async function createPocketServer(options={}) {
 const root=options.root||path.dirname(fileURLToPath(import.meta.url));
 const port=Number(options.port??8890), upstream=options.upstream||'http://127.0.0.1:38886';
@@ -36,6 +36,13 @@ async function index(){return cached('threads',15000,async()=>{
  const rows=[];for(let offset=0;;){const batch=await bb(`threads?limit=500&offset=${offset}`);rows.push(...batch);if(batch.length<500)break;offset+=batch.length;if(offset>100000)throw new Error('Thread index exceeds limit');}
  return [...new Map(rows.map(t=>[t.id,compactThread(t)])).values()];
 })}
+async function attention(thread,force=false){
+ if(!force&&!thread.hasPendingInteraction)return thread;
+ try{const interactions=await bb(`threads/${thread.id}/interactions`);return {...thread,hasPendingInteraction:requiresUserInput(interactions)}}catch{return thread}
+}
+async function attentionRows(rows){
+ const result=[];for(let start=0;start<rows.length;start+=4)result.push(...await Promise.all(rows.slice(start,start+4).map(t=>attention(t))));return result;
+}
 async function meta(){const [p,t,l]=await Promise.all([cached('projects',60000,()=>bb('projects')),cached('taskProjects',60000,()=>rpc('tasks','listProjects',{})),labels()]);return {bbUrl:publicBbUrl,projects:p.value,taskProjects:t.value.projects,labels:l.value.labels,stale:p.stale||t.stale||l.stale}}
 async function tasks(){return cached('tasks',30000,async()=>{
  // Restart once if Tasks invalidates its cursor during pagination.
@@ -94,7 +101,7 @@ const server=http.createServer(async(req,res)=>{
  if(url.pathname==='/api/new-thread/receipt'&&req.method==='GET')return json(res,journal['create:'+q.get('id')]||{state:'missing'},200,req);
  if(req.method==='GET'&&url.pathname==='/api/meta')return json(res,await meta(),200,req);
  if(req.method==='GET'&&url.pathname==='/api/threads'){
- const [i,l]=await Promise.all([index(),labels()]);const rows=i.value.map(t=>({...t,labels:l.value.memberships[t.id]||[]}));const filtered=filterThreads(rows,Object.fromEntries(q));const offset=Math.max(0,Number(q.get('offset'))||0),limit=Math.min(1000,Math.max(60,Number(q.get('limit'))||60));return json(res,{threads:filtered.slice(offset,offset+limit),total:filtered.length,nextOffset:offset+limit<filtered.length?offset+limit:null,stale:i.stale||l.stale,warning:i.error||l.error||null,syncedAt:Math.min(i.at,l.at)},200,req);
+ const [i,l]=await Promise.all([index(),labels()]);const rows=await attentionRows(i.value.map(t=>({...t,labels:l.value.memberships[t.id]||[]})));const filtered=filterThreads(rows,Object.fromEntries(q));const offset=Math.max(0,Number(q.get('offset'))||0),limit=Math.min(1000,Math.max(60,Number(q.get('limit'))||60));return json(res,{threads:filtered.slice(offset,offset+limit),total:filtered.length,nextOffset:offset+limit<filtered.length?offset+limit:null,stale:i.stale||l.stale,warning:i.error||l.error||null,syncedAt:Math.min(i.at,l.at)},200,req);
  }
  if(req.method==='GET'&&url.pathname==='/api/tasks'){
  const t=await tasks();let rows=t.value;const search=(q.get('q')||'').toLowerCase();if(search)rows=rows.filter(t=>(t.key+' '+t.title+' '+t.description).toLowerCase().includes(search));if(q.get('project'))rows=rows.filter(t=>t.projectId===q.get('project'));if(q.get('status'))rows=rows.filter(t=>t.status===q.get('status'));rows=[...rows].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));const offset=Math.max(0,Number(q.get('offset'))||0),limit=Math.min(1000,Math.max(60,Number(q.get('limit'))||60));return json(res,{tasks:rows.slice(offset,offset+limit).map(({description,...t})=>t),total:rows.length,nextOffset:offset+limit<rows.length?offset+limit:null,stale:t.stale,warning:t.error||null,syncedAt:t.at},200,req);
@@ -118,7 +125,7 @@ const server=http.createServer(async(req,res)=>{
  if(req.method==='GET'&&menuRoute[2]==='menu'){
  const t=await actions.get(id);const project=(await cached('projects',60000,()=>bb('projects'))).value.find(p=>p.id===t.projectId);
  const threadPath=project?.isPersonal||t.projectId==='proj_personal'?`/threads/${id}`:`/projects/${t.projectId}/threads/${id}`;
- const cloud=new URL(publicBbUrl);return json(res,{thread:{...compactThread(t),archivedAt:t.archivedAt},localLink:new URL(threadPath,upstream).href,cloudLink:cloud.hostname==='localhost'||cloud.hostname==='127.0.0.1'?null:new URL(threadPath,cloud).href},200,req);
+ const cloud=new URL(publicBbUrl);return json(res,{thread:{...await attention(compactThread(t),true),archivedAt:t.archivedAt},localLink:new URL(threadPath,upstream).href,cloudLink:cloud.hostname==='localhost'||cloud.hostname==='127.0.0.1'?null:new URL(threadPath,cloud).href},200,req);
  }
  if(req.method==='POST'&&menuRoute[2]==='action'){
  const input=await body(req),allowed=['read','unread','pin','unpin','rename','archive','unarchive','delete','split','children'];
@@ -136,7 +143,7 @@ const server=http.createServer(async(req,res)=>{
  if(kind==='thread'){
  if(req.method==='GET'&&action==='timeline'){
  const params=new URLSearchParams({segmentLimit:'8',includeNestedRows:'false'});for(const k of ['beforeAnchorSeq','beforeAnchorId'])if(q.has(k))params.set(k,q.get(k));
- const [timeline,thread,queue]=await Promise.all([bb(`threads/${id}/timeline?${params}`),bb(`threads/${id}`),bb(`threads/${id}/queued-messages`).catch(()=>null)]);const rows=timeline.rows.map(r=>r.kind==='work'?{id:r.id,kind:r.kind,workKind:r.workKind,status:r.status,sourceSeqStart:r.sourceSeqStart,sourceSeqEnd:r.sourceSeqEnd,createdAt:r.createdAt,title:r.title,command:r.command?.slice(0,500),output:r.output?.slice(0,4000)}:r);return json(res,{...timeline,rows,thread,queue},200,req);
+ const [timeline,thread,queue]=await Promise.all([bb(`threads/${id}/timeline?${params}`),bb(`threads/${id}`),bb(`threads/${id}/queued-messages`).catch(()=>null)]);const rows=timeline.rows.map(r=>r.kind==='work'?{id:r.id,kind:r.kind,workKind:r.workKind,status:r.status,sourceSeqStart:r.sourceSeqStart,sourceSeqEnd:r.sourceSeqEnd,createdAt:r.createdAt,title:r.title,command:r.command?.slice(0,500),output:r.output?.slice(0,4000)}:r);return json(res,{...timeline,rows,thread:await attention(thread,true),queue},200,req);
  }
  if(req.method==='GET'&&action==='delivery')return json(res,journal[q.get('id')]||{state:'missing'},200,req);
  if(req.method==='POST'&&action==='send')return json(res,await sendOnce(id,await body(req)),200,req);
