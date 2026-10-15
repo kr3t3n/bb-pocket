@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {threadUsageLimit,createThreadUsage,threadLimitChip} from '../src/usage-limit.mjs';
+import {threadUsageLimit,createThreadUsage,threadUsageBadge} from '../src/usage-limit.mjs';
 import {compactThread} from '../src/domain.mjs';
 const now=Date.parse('2030-01-01T12:00:00Z');
 const thread={id:'thread',providerId:'claude-code',environmentHostId:'host-a',model:'known-model'};
@@ -55,5 +55,5 @@ test('hides saved, stale and failed reads and restores after a successful refres
  mode='error';await usage.refresh([thread],true);assert.equal(usage.limit(thread),null);
  mode='ok';await usage.refresh([thread],true);assert(usage.limit(thread));assert.equal(changes,5);
  const esc=s=>s.replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;');
- const chip=threadLimitChip(thread,usage,'Claude',esc);assert.match(chip,/role="img"/);assert.match(chip,/aria-label="Claude usage limit reached\. Resets/);assert.match(chip,/>Limit<\/span>/);
+ const badge=threadUsageBadge(thread,usage,'Claude',esc);assert.match(badge,/role="img"/);assert.match(badge,/aria-label="Claude usage limit reached\. Resets/);
 });

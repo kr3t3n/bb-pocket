@@ -1,4 +1,4 @@
-import {createThreadUsage,threadLimitChip,setupUsageLimitTooltip} from './usage-limit.mjs';
+import {createThreadUsage,threadUsageBadge,setupUsageBadgeTooltip} from './usage-limit.mjs';
 import {setupThreadSwipe} from './thread-swipe.js';
 import {setupViewport} from './viewport.js';
 import {openThemeMenu} from './themes.js';
@@ -39,7 +39,7 @@ function md(text){return DOMPurify.sanitize(marked.parse(text||'',{breaks:true})
 async function api(path,body,timeout=25000){const res=await fetch('/api/'+path,{method:body===undefined?'GET':'POST',headers:body===undefined?{}:{'content-type':'application/json','x-pocket-request':'1'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(timeout),cache:'no-store'});if(res.redirected||!res.headers.get('content-type')?.includes('application/json'))throw new Error('Sign in to BB Connect to reconnect');const d=await res.json();if(!res.ok){const e=new Error(d.error||'Request failed');e.status=res.status;throw e;}return d}
 const openNewThread=setupNewThread({api,esc,read,save,sheet,navigate,toast});
 const threadUsage=createThreadUsage({api,onChange:()=>{if(tab==='threads'&&!threadId)renderResults()}});
-setupUsageLimitTooltip();
+setupUsageBadgeTooltip();
 
 function syncText(text,isOffline=false){connection=text;connectionBad=isOffline;for(const el of document.querySelectorAll('.sync')){el.classList.toggle('offline',isOffline);el.innerHTML=`<span class="dot"></span>${esc(text)}`}renderStrip()}
 
@@ -124,7 +124,7 @@ function renderResults(){const el=$('#results');if(!el||threadId)return;if(docum
 function hasDraft(id){return !!read('draft:'+id,'')||read('attachments:'+id,[]).length>0}
 function threadCard(t){
  const [state,label]=threadState(t);const labels=(t.labels||[]).filter(l=>!filters.exclude.split(',').includes(l)).slice(0,2);
- return `<article class="threadrow" data-thread-card="${esc(t.id)}" data-unread="${!!t.unread}"><button class="row ${t.unread?'unread':''}" data-thread="${esc(t.id)}"><span class="avatar st-${state}">${providerMark(t.providerId)}${t.unread?'<i class="unreadmark" aria-label="Unread"></i>':''}</span><span class="rowmain"><span class="rowline"><span class="rowtitle">${esc(t.title)}</span><time>${relative(t.updatedAt)}</time></span><span class="rowmeta"><span class="state st-${state}">${label}</span>${threadLimitChip(t,threadUsage,providerName(t.providerId),esc)}<span class="proj">${esc(pname(t.projectId))}</span>${t.pinnedAt?`<span class="flag" title="Pinned">${icon('pin')}</span>`:''}${hasDraft(t.id)?`<span class="draftmark">${icon('draft')}Draft</span>`:''}${labels.map(l=>`<span class="tag">${esc(lname(l))}</span>`).join('')}</span></span></button><button class="rowmenu" data-thread-menu="${esc(t.id)}" aria-label="Thread actions for ${esc(t.title)}" aria-haspopup="dialog">${icon('more')}</button></article>`;
+ return `<article class="threadrow" data-thread-card="${esc(t.id)}" data-unread="${!!t.unread}"><button class="row ${t.unread?'unread':''}" data-thread="${esc(t.id)}"><span class="avatar st-${state}">${providerMark(t.providerId)}${threadUsageBadge(t,threadUsage,providerName(t.providerId),esc)}${t.unread?'<i class="unreadmark" aria-label="Unread"></i>':''}</span><span class="rowmain"><span class="rowline"><span class="rowtitle">${esc(t.title)}</span><time>${relative(t.updatedAt)}</time></span><span class="rowmeta"><span class="state st-${state}">${label}</span><span class="proj">${esc(pname(t.projectId))}</span>${t.pinnedAt?`<span class="flag" title="Pinned">${icon('pin')}</span>`:''}${hasDraft(t.id)?`<span class="draftmark">${icon('draft')}Draft</span>`:''}${labels.map(l=>`<span class="tag">${esc(lname(l))}</span>`).join('')}</span></span></button><button class="rowmenu" data-thread-menu="${esc(t.id)}" aria-label="Thread actions for ${esc(t.title)}" aria-haspopup="dialog">${icon('more')}</button></article>`;
 }
 function taskCard(t){return `<button class="row taskrow" data-task="${esc(t.id)}"><span class="ts s-${esc(t.status)}" title="${esc(pretty(t.status))}"></span><span class="rowmain"><span class="rowline"><span class="rowtitle">${esc(t.title)}</span><time>${relative(t.updatedAt)}</time></span><span class="rowmeta"><span class="key">${esc(t.key)}</span><span class="state">${esc(cap(pretty(t.status)))}</span>${t.priority&&t.priority!=='none'?`<span class="prio p-${esc(t.priority)}">${esc(cap(t.priority))}</span>`:''}${t.dueDate?`<span class="due">Due ${esc(t.dueDate)}</span>`:''}<span class="proj">${esc(tname(t.projectId))}</span></span></span></button>`}
 function renderProjects(){

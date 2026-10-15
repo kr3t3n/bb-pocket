@@ -17,11 +17,11 @@ export function threadUsageLimit(thread, usage, now=Date.now()) {
  return {resetsAt:resets.every(Number.isFinite)?new Date(Math.max(...resets)).toISOString():null};
 }
 
-export function threadLimitChip(thread, usage, name, esc) {
+export function threadUsageBadge(thread, usage, name, esc) {
  const limit=usage.limit(thread);if(!limit)return '';
  const reset=limit.resetsAt?' Resets '+new Date(limit.resetsAt).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})+'.':'';
  const label=name+' usage limit reached.'+reset;
- return `<span class="usage-limit-chip" role="img" aria-label="${esc(label)}" title="${esc(label)}"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 2h8M4 14h8M5 2v3l3 3-3 3v3M11 2v3L8 8l3 3v3" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></svg>Limit</span>`;
+ return `<span class="usage-badge" role="img" aria-label="${esc(label)}" title="${esc(label)}"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 2h8M4 14h8M5 2v3l3 3-3 3v3M11 2v3L8 8l3 3v3" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></svg></span>`;
 }
 
 // Keep per-host reads in memory only. Device-cached counters never mark rows.
@@ -42,29 +42,29 @@ export function createThreadUsage({api,onChange=()=>{},now=()=>Date.now()}) {
  };
 }
 
-// Keep the row's existing activation behavior. Only tapping the chip opens details.
-export function setupUsageLimitTooltip() {
+// Keep the row's existing activation behavior. Only tapping the badge opens details.
+export function setupUsageBadgeTooltip() {
  if(document.getElementById('pocket-usage-tooltip'))return;
  const tip=document.createElement('div');tip.id='pocket-usage-tooltip';tip.className='pocket-usage-tooltip';tip.role='tooltip';tip.hidden=true;document.body.append(tip);
- let activeChip=null,describedRow=null;
+ let activeBadge=null,describedRow=null;
  const hide=()=>{
-  tip.hidden=true;activeChip=null;
+  tip.hidden=true;activeBadge=null;
   if(describedRow){const ids=(describedRow.getAttribute('aria-describedby')||'').split(/\s+/).filter(id=>id&&id!==tip.id);if(ids.length)describedRow.setAttribute('aria-describedby',ids.join(' '));else describedRow.removeAttribute('aria-describedby');describedRow=null}
  };
- const show=chip=>{
-  hide();activeChip=chip;tip.textContent=chip.getAttribute('aria-label');tip.hidden=false;
-  const row=chip.closest('[data-thread]');if(row&&document.activeElement===row){describedRow=row;row.setAttribute('aria-describedby',[(row.getAttribute('aria-describedby')||''),tip.id].filter(Boolean).join(' '))}
-  const r=chip.getBoundingClientRect(),box=tip.getBoundingClientRect();
+ const show=badge=>{
+  hide();activeBadge=badge;tip.textContent=badge.getAttribute('aria-label');tip.hidden=false;
+  const row=badge.closest('[data-thread]');if(row&&document.activeElement===row){describedRow=row;row.setAttribute('aria-describedby',[(row.getAttribute('aria-describedby')||''),tip.id].filter(Boolean).join(' '))}
+  const r=badge.getBoundingClientRect(),box=tip.getBoundingClientRect();
   tip.style.left=Math.max(8,Math.min(r.left,innerWidth-box.width-8))+'px';
   tip.style.top=Math.max(8,Math.min(r.top>=box.height+16?r.top-box.height-8:r.bottom+8,innerHeight-box.height-8))+'px';
  };
- document.addEventListener('pointerover',e=>{const chip=e.target.closest?.('.usage-limit-chip');if(chip)show(chip)});
- document.addEventListener('pointerout',e=>{if(activeChip&&e.target.closest?.('.usage-limit-chip')===activeChip&&!activeChip.contains(e.relatedTarget)&&document.activeElement!==activeChip.closest('[data-thread]'))hide()});
- document.addEventListener('focusin',e=>{const chip=e.target.closest?.('[data-thread]')?.querySelector('.usage-limit-chip');if(chip)show(chip);else hide()});
+ document.addEventListener('pointerover',e=>{const badge=e.target.closest?.('.usage-badge');if(badge)show(badge)});
+ document.addEventListener('pointerout',e=>{if(activeBadge&&e.target.closest?.('.usage-badge')===activeBadge&&!activeBadge.contains(e.relatedTarget)&&document.activeElement!==activeBadge.closest('[data-thread]'))hide()});
+ document.addEventListener('focusin',e=>{const badge=e.target.closest?.('[data-thread]')?.querySelector('.usage-badge');if(badge)show(badge);else hide()});
  document.addEventListener('focusout',e=>{if(e.target===describedRow)hide()});
- document.addEventListener('click',e=>{const chip=e.target.closest?.('.usage-limit-chip');if(!chip)return;e.preventDefault();e.stopImmediatePropagation();show(chip)},true);
- document.addEventListener('pointerdown',e=>{if(!e.target.closest?.('.usage-limit-chip'))hide()},true);
+ document.addEventListener('click',e=>{const badge=e.target.closest?.('.usage-badge');if(!badge)return;e.preventDefault();e.stopImmediatePropagation();show(badge)},true);
+ document.addEventListener('pointerdown',e=>{if(!e.target.closest?.('.usage-badge'))hide()},true);
  document.addEventListener('keydown',e=>{if(e.key==='Escape')hide()});
  document.addEventListener('scroll',hide,true);window.addEventListener('resize',hide);
- new MutationObserver(()=>{if(activeChip&&!activeChip.isConnected)hide()}).observe(document.body,{childList:true,subtree:true});
+ new MutationObserver(()=>{if(activeBadge&&!activeBadge.isConnected)hide()}).observe(document.body,{childList:true,subtree:true});
 }
