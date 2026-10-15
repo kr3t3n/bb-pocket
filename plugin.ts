@@ -68,7 +68,7 @@ export default function pocketPlugin(bb:BbPluginApi) {
       },
       resolve:async(threadId:string,ids:string[])=>ids.map(id=>{const row=db.prepare('SELECT thread_id,record FROM attachments WHERE id=?').get(id) as {thread_id:string,record:string}|undefined;if(!row||row.thread_id!==threadId)throw Object.assign(new Error('Attachment does not belong to this thread'),{status:400});return JSON.parse(row.record)}),
     };
-    server=await createPocketServer({port:config.port,upstream:bb.server.loopbackBaseUrl,bbUrl,publicHost,assets,journalStore,usageLimits:()=>bb.sdk.system.usageLimits(),attachments:attachmentApi,newThread:newThreadApi(bb.sdk),threadActions:{
+    server=await createPocketServer({port:config.port,upstream:bb.server.loopbackBaseUrl,bbUrl,publicHost,assets,journalStore,usageLimits:(hostId:string|null)=>bb.sdk.system.usageLimits(hostId?{hostId}:{}),attachments:attachmentApi,newThread:newThreadApi(bb.sdk),threadActions:{
       get:(threadId:string)=>bb.sdk.threads.get({threadId}),
       children:(threadId:string)=>bb.sdk.threads.childSummary({threadId}),
       read:(threadId:string)=>bb.sdk.threads.markRead({threadId}),

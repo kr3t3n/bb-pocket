@@ -94,7 +94,12 @@ const server=http.createServer(async(req,res)=>{
  try{
  if(url.pathname.startsWith('/api/')){
  if(req.method==='POST'&&!/^\/api\/thread\/[A-Za-z0-9_-]+\/attachments$/.test(url.pathname)&&(req.headers['x-pocket-request']!=='1'||!req.headers['content-type']?.startsWith('application/json')))throw Object.assign(new Error('Invalid request'),{status:403});
- if(req.method==='GET'&&url.pathname==='/api/usage'){let u=await cached('usage',60000,()=>options.usageLimits?options.usageLimits():bb('system/usage-limits'));if(u.stale){try{await cache.get('usage').pending;const c=cache.get('usage');u={value:c.value,at:c.at,stale:false}}catch(e){u.error=e.message}}return json(res,{providers:u.value,stale:u.stale,warning:u.error||null,syncedAt:u.at},200,req)}
+ if(req.method==='GET'&&url.pathname==='/api/usage'){
+ const hostId=q.get('hostId')||null;if(hostId&&!safeId(hostId))throw Object.assign(new Error('Invalid host ID'),{status:400});
+ const key='usage:'+String(hostId||'default');let u=await cached(key,60000,()=>options.usageLimits?options.usageLimits(hostId):bb('system/usage-limits'+(hostId?'?hostId='+encodeURIComponent(hostId):'')));
+ if(u.stale){try{await cache.get(key).pending;const c=cache.get(key);u={value:c.value,at:c.at,stale:false}}catch(e){u.error=e.message}}
+ return json(res,{hostId,providers:u.value,stale:u.stale,warning:u.error||null,syncedAt:u.at},200,req)
+ }
  if(url.pathname==='/api/new-thread/projects'&&req.method==='GET'){if(!options.newThread)throw Object.assign(new Error('New threads require the Pocket plugin'),{status:503});return json(res,{projects:await options.newThread.projects()},200,req)}
  if(url.pathname==='/api/new-thread/options'&&req.method==='GET'){if(!options.newThread)throw Object.assign(new Error('New threads require the Pocket plugin'),{status:503});return json(res,await options.newThread.catalog(Object.fromEntries(q)),200,req)}
  if(url.pathname==='/api/new-thread'&&req.method==='POST')return json(res,await createOnce(await body(req)),200,req);
