@@ -30,7 +30,15 @@ try{
   holdHosts=false;await Promise.all(pending.splice(0).map(({r,host})=>r.fulfill({json:usage(host)})));await expectBadges(2);
   for(const id of ['blocked','model-match'])assert.equal(await page.locator(`[data-thread="${id}"] .usage-badge`).count(),1,theme+' '+id);
   for(const id of ['rounded','other-model','unknown-model','expired','unknown-host'])assert.equal(await page.locator(`[data-thread="${id}"] .usage-badge`).count(),0,theme+' '+id);
-  const badge=page.locator('[data-thread="blocked"] .usage-badge');assert.equal((await badge.innerText()).trim(),'');assert.equal(await badge.locator('svg').evaluate(el=>getComputedStyle(el).width),'6px');assert.equal(await badge.locator('svg').evaluate(el=>getComputedStyle(el).height),'8px');assert.equal(await badge.locator('svg').evaluate(el=>getComputedStyle(el).color),'rgb(242, 196, 109)');assert(await badge.evaluate(el=>!!el.closest('.avatar,.provider')));assert(await badge.evaluate(el=>el.previousElementSibling?.tagName.toLowerCase()==='svg'));const hit=await badge.boundingBox();assert(hit.width>=18&&hit.height>=20);assert.match(await badge.getAttribute('title'),/Claude usage limit reached\. Resets/);assert.equal(await badge.getAttribute('aria-label'),await badge.getAttribute('title'));
+  const badge=page.locator('[data-thread="blocked"] .usage-badge');assert.equal((await badge.innerText()).trim(),'');assert.equal(await badge.locator('svg').evaluate(el=>getComputedStyle(el).width),'6px');assert.equal(await badge.locator('svg').evaluate(el=>getComputedStyle(el).height),'8px');assert.equal(await badge.locator('svg').evaluate(el=>getComputedStyle(el).color),'rgb(242, 196, 109)');assert(await badge.evaluate(el=>!!el.closest('.avatar,.provider')));assert(await badge.evaluate(el=>{
+   const wrapper=el.parentElement,glyph=el.previousElementSibling;if(!wrapper.classList.contains('provider-glyph')||glyph?.tagName.toLowerCase()!=='svg')return false;
+   const g=glyph.getBoundingClientRect(),m=el.querySelector('svg').getBoundingClientRect(),w=wrapper.getBoundingClientRect();
+   return Math.abs(m.right-g.right)<1&&Math.abs(m.top-(g.top-4))<1&&m.bottom>g.top&&Math.abs(w.width-g.width)<1;
+  }),theme+' hourglass overlays glyph top-right without adding width');
+  assert(await badge.evaluate(el=>{
+   const unread=el.closest('[data-thread]').querySelector('.unreadmark');if(!unread)return true;
+   const b=el.getBoundingClientRect(),u=unread.getBoundingClientRect();return b.right<=u.left||b.left>=u.right||b.bottom<=u.top||b.top>=u.bottom;
+  }),theme+' tap area stays separate from unread marker');const hit=await badge.boundingBox();assert(hit.width>=18&&hit.height>=20);assert.match(await badge.getAttribute('title'),/Claude usage limit reached\. Resets/);assert.equal(await badge.getAttribute('aria-label'),await badge.getAttribute('title'));
   await badge.hover();await page.locator('#pocket-usage-tooltip:not([hidden])').waitFor();assert.match(await page.locator('#pocket-usage-tooltip').innerText(),/usage limit reached/);
   await page.keyboard.press('Escape');assert.equal(await page.locator('#pocket-usage-tooltip').isVisible(),false);
   await page.locator('[data-thread="blocked"]').focus();assert.equal(await page.locator('[data-thread="blocked"]').getAttribute('aria-describedby'),'pocket-usage-tooltip');assert(await page.locator('#pocket-usage-tooltip').isVisible());
@@ -39,7 +47,7 @@ try{
   await page.locator('h1').click();assert.equal(await page.locator('#pocket-usage-tooltip').isVisible(),false);
   assert.equal(await page.locator('[data-thread-card="blocked"]').getAttribute('data-unread'),'true');assert.equal(await page.locator('[data-thread="blocked"] .unreadmark').count(),1);assert(await page.locator('[data-thread="blocked"] .st-running,[data-thread="blocked"] .threadstatus.active,[data-thread="blocked"] .statusdot.active').count()>0,theme+' preserves active status');
   await page.setViewportSize({width:320,height:700});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,theme+' no horizontal overflow');
-  const visible=await badge.locator('svg').evaluate(el=>{const r=el.getBoundingClientRect();return r.width>0&&r.left>=0&&r.right<=innerWidth});assert(visible,theme+' badge visible in compact row');await page.setViewportSize({width:390,height:844});
+  const visible=await badge.locator('svg').evaluate(el=>{const r=el.getBoundingClientRect(),hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return r.width>0&&r.left>=0&&r.right<=innerWidth&&!!hit?.closest('.usage-badge')});assert(visible,theme+' badge visible in compact row');await page.setViewportSize({width:390,height:844});
   usageMode='stale';await refresh();await expectBadges(0);
   usageMode='ok';await refresh();await expectBadges(2);
   usageMode='error';await refresh();await expectBadges(0);

@@ -22,8 +22,9 @@ body:has(.threadview){position:fixed;inset:0;height:100%;min-height:0;overflow:h
 /* Provider allowance is separate from unread and agent execution status. */
 .usage-badge{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:18px;height:20px;color:#f2c46d;vertical-align:middle}
 .usage-badge>svg{color:inherit;width:6px;height:8px;flex-shrink:0}
-.avatar>.usage-badge{position:absolute;right:-6px;bottom:-5px}
-.provider>.usage-badge{margin:-3px -4px}
+.provider-glyph{position:relative;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;line-height:0}
+.provider-glyph>.usage-badge{position:absolute;right:0;top:-4px;align-items:flex-start;justify-content:flex-end}
+.provider:has(.provider-glyph),.provider>.provider-glyph{overflow:visible}
 
 .pocket-usage-tooltip{position:fixed;z-index:100;max-width:calc(100vw - 16px);padding:8px 10px;border:1px solid #f2c46d55;border-radius:8px;background:#25231e;color:#f2d49c;box-shadow:0 4px 20px #0006;font-size:12px;line-height:1.5;pointer-events:none}
 .pocket-usage-tooltip[hidden]{display:none}
