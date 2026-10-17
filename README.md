@@ -4,7 +4,7 @@ An installable BB plugin that runs a lightweight mobile PWA. Browse threads, tas
 
 ## Install
 
-Requires **BB 0.44.0 or later**, Node 22.19+, and npm. Enable the **Tasks** and **Labels Pro** plugins first; Pocket reads their existing data. Enable and pair **BB Connect** for remote phone access.
+Requires **BB 0.44.0 or later**, Node 22.19+, and npm. Enable the **Tasks** and **Labels Pro** plugins first; Pocket reads their existing data. For remote phone access, use either BB Connect (pair it and keep `share` on) or a private tailnet address (see **Tailscale access** below).
 
 ```sh
 bb plugin install https://github.com/kr3t3n/bb-pocket
@@ -21,6 +21,19 @@ bb pocket status
 ```
 
 Changes to plugin settings restart Pocket automatically. No separate service or terminal session is needed.
+
+## Tailscale access
+
+To reach Pocket over a private tailnet instead of BB Connect, put Tailscale Serve in front of the loopback port and tell Pocket the address:
+
+```sh
+tailscale serve --bg --https=8443 http://127.0.0.1:8890
+bb plugin config pocket set share false
+bb plugin config pocket set publicUrl https://<machine>.<tailnet>.ts.net:8443
+bb pocket status
+```
+
+Only devices on your tailnet can open that address. Pocket still listens on loopback only and accepts no other host names.
 
 ## Features
 

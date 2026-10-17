@@ -13,6 +13,7 @@ export default function pocketPlugin(bb:BbPluginApi) {
   port:{type:'number',label:'Pocket port',default:8890,experimental_schema:z.number().int().min(1024).max(65535)},
   share:{type:'boolean',label:'Share through owner-authenticated BB Connect',default:true},
   bbUrl:{type:'string',label:'Full BB URL (optional override)',default:''},
+  publicUrl:{type:'string',label:'Private remote URL, such as a Tailscale Serve address (used when sharing is off)',default:''},
  });
  const db=bb.storage.database();
  bb.storage.migrate(db,[`CREATE TABLE IF NOT EXISTS sends (id TEXT PRIMARY KEY, record TEXT NOT NULL)`, `CREATE TABLE IF NOT EXISTS attachments (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, record TEXT NOT NULL)`, `CREATE TABLE IF NOT EXISTS share_imports (id TEXT PRIMARY KEY, record TEXT NOT NULL)`]);
@@ -40,6 +41,7 @@ export default function pocketPlugin(bb:BbPluginApi) {
   while(!signal.aborted){
    const config=await settings.get();
    let hostId:string|null=null,cliShared=false,ownsCliShare=false,publicHost='',url=`http://127.0.0.1:${config.port}`,bbUrl=config.bbUrl||bb.server.experimental_appUrl||bb.server.loopbackBaseUrl,warning='';
+   if(!config.share&&config.publicUrl){try{const u=new URL(config.publicUrl);if(u.protocol!=='https:')throw new Error('use https');url=u.origin;publicHost=u.host}catch(e){warning=`Pocket public URL is not valid: ${e instanceof Error?e.message:String(e)}. Pocket is available on loopback only.`;bb.log.warn(warning)}}
    if(config.share){try{
     hostId=(await bb.sdk.system.config()).primaryHostId;
     if(!hostId)throw new Error('BB has no primary host');
