@@ -1,4 +1,5 @@
 import http from 'node:http';
+import {renderGenui,uiFences,latestConversation} from './src/genui.mjs';
 import {readFile,writeFile,rename,mkdir} from 'node:fs/promises';
 import {gzipSync} from 'node:zlib';
 import {createHash} from 'node:crypto';
@@ -36,9 +37,30 @@ async function index(){return cached('threads',15000,async()=>{
  const rows=[];for(let offset=0;;){const batch=await bb(`threads?limit=500&offset=${offset}`);rows.push(...batch);if(batch.length<500)break;offset+=batch.length;if(offset>100000)throw new Error('Thread index exceeds limit');}
  return [...new Map(rows.map(t=>[t.id,compactThread(t)])).values()];
 })}
+const uiCache=new Map(),questionCache=new Map();
+async function uiReply(id,row){
+ if(row.kind!=='conversation'||row.role!=='assistant'||!uiFences(row.text).length)return row;
+ const key=id+':'+createHash('sha256').update(row.text).digest('hex');
+ let entry=uiCache.get(key);
+ if(!entry||Date.now()-entry.at>30000){
+  const pending=renderGenui(row.text,request=>rpc('genui','load_data',{threadId:id,path:request.path,...(request.raw?{raw:true}:{})}).catch(()=>({ok:false,error:'Data unavailable; open full BB.'})));
+  entry={at:Date.now(),pending};uiCache.set(key,entry);if(uiCache.size>500)uiCache.delete(uiCache.keys().next().value);
+ }
+ try{const rendered=await entry.pending;return {...row,text:rendered.text,uiReplies:rendered.replies,hasGenerativeUi:true}}catch{uiCache.delete(key);return row}
+}
+async function question(thread){
+ const version=thread.updatedAt;let entry=questionCache.get(thread.id);
+ if(!entry||entry.version!==version||Date.now()-entry.at>30000){
+  const pending=(async()=>{const timeline=await bb(`threads/${thread.id}/timeline?segmentLimit=2&includeNestedRows=false`);const last=latestConversation(timeline.rows);if(!last||last.role!=='assistant')return false;return (await uiReply(thread.id,last)).uiReplies?.length?last.id:null})();
+  entry={version,at:Date.now(),pending};questionCache.set(thread.id,entry);if(questionCache.size>2000)questionCache.delete(questionCache.keys().next().value);
+ }
+ try{return await entry.pending}catch{questionCache.delete(thread.id);return false}
+}
 async function attention(thread,force=false){
- if(!force&&!thread.hasPendingInteraction)return thread;
- try{const interactions=await bb(`threads/${thread.id}/interactions`);return {...thread,hasPendingInteraction:requiresUserInput(interactions)}}catch{return thread}
+ let pending=!!thread.hasPendingInteraction;
+ if(force||pending){try{pending=requiresUserInput(await bb(`threads/${thread.id}/interactions`))}catch{}}
+ const pendingUiMessageId=await question(thread);
+ return {...thread,hasPendingInteraction:pending||!!pendingUiMessageId,hasUiQuestion:!!pendingUiMessageId,pendingUiMessageId:pendingUiMessageId||null};
 }
 async function attentionRows(rows){
  const result=[];for(let start=0;start<rows.length;start+=4)result.push(...await Promise.all(rows.slice(start,start+4).map(t=>attention(t))));return result;
@@ -106,7 +128,12 @@ const server=http.createServer(async(req,res)=>{
  if(url.pathname==='/api/new-thread/receipt'&&req.method==='GET')return json(res,journal['create:'+q.get('id')]||{state:'missing'},200,req);
  if(req.method==='GET'&&url.pathname==='/api/meta')return json(res,await meta(),200,req);
  if(req.method==='GET'&&url.pathname==='/api/threads'){
- const [i,l]=await Promise.all([index(),labels()]);const rows=await attentionRows(i.value.map(t=>({...t,labels:l.value.memberships[t.id]||[]})));const filtered=filterThreads(rows,Object.fromEntries(q));const offset=Math.max(0,Number(q.get('offset'))||0),limit=Math.min(1000,Math.max(60,Number(q.get('limit'))||60));return json(res,{threads:filtered.slice(offset,offset+limit),total:filtered.length,nextOffset:offset+limit<filtered.length?offset+limit:null,stale:i.stale||l.stale,warning:i.error||l.error||null,syncedAt:Math.min(i.at,l.at)},200,req);
+ const [i,l]=await Promise.all([index(),labels()]);const filters=Object.fromEntries(q),needsInput=filters.status==='attention';
+ const candidates=filterThreads(i.value.map(t=>({...t,labels:l.value.memberships[t.id]||[]})),needsInput?{...filters,status:''}:filters);
+ const offset=Math.max(0,Number(q.get('offset'))||0),limit=Math.min(1000,Math.max(60,Number(q.get('limit'))||60));
+ const filtered=needsInput?(await attentionRows(candidates)).filter(t=>t.hasPendingInteraction):candidates;
+ const rows=needsInput?filtered.slice(offset,offset+limit):await attentionRows(filtered.slice(offset,offset+limit));
+ return json(res,{threads:rows,total:filtered.length,nextOffset:offset+limit<filtered.length?offset+limit:null,stale:i.stale||l.stale,warning:i.error||l.error||null,syncedAt:Math.min(i.at,l.at)},200,req);
  }
  if(req.method==='GET'&&url.pathname==='/api/tasks'){
  const t=await tasks();let rows=t.value;const search=(q.get('q')||'').toLowerCase();if(search)rows=rows.filter(t=>(t.key+' '+t.title+' '+t.description).toLowerCase().includes(search));if(q.get('project'))rows=rows.filter(t=>t.projectId===q.get('project'));if(q.get('status'))rows=rows.filter(t=>t.status===q.get('status'));rows=[...rows].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));const offset=Math.max(0,Number(q.get('offset'))||0),limit=Math.min(1000,Math.max(60,Number(q.get('limit'))||60));return json(res,{tasks:rows.slice(offset,offset+limit).map(({description,...t})=>t),total:rows.length,nextOffset:offset+limit<rows.length?offset+limit:null,stale:t.stale,warning:t.error||null,syncedAt:t.at},200,req);
@@ -148,7 +175,7 @@ const server=http.createServer(async(req,res)=>{
  if(kind==='thread'){
  if(req.method==='GET'&&action==='timeline'){
  const params=new URLSearchParams({segmentLimit:'8',includeNestedRows:'false'});for(const k of ['beforeAnchorSeq','beforeAnchorId'])if(q.has(k))params.set(k,q.get(k));
- const [timeline,thread,queue]=await Promise.all([bb(`threads/${id}/timeline?${params}`),bb(`threads/${id}`),bb(`threads/${id}/queued-messages`).catch(()=>null)]);const rows=timeline.rows.map(r=>r.kind==='work'?{id:r.id,kind:r.kind,workKind:r.workKind,status:r.status,sourceSeqStart:r.sourceSeqStart,sourceSeqEnd:r.sourceSeqEnd,createdAt:r.createdAt,title:r.title,command:r.command?.slice(0,500),output:r.output?.slice(0,4000)}:r);return json(res,{...timeline,rows,thread:await attention(thread,true),queue},200,req);
+ const [timeline,thread,queue]=await Promise.all([bb(`threads/${id}/timeline?${params}`),bb(`threads/${id}`),bb(`threads/${id}/queued-messages`).catch(()=>null)]);const rows=await Promise.all(timeline.rows.map(async r=>r.kind==='work'?{id:r.id,kind:r.kind,workKind:r.workKind,status:r.status,sourceSeqStart:r.sourceSeqStart,sourceSeqEnd:r.sourceSeqEnd,createdAt:r.createdAt,title:r.title,command:r.command?.slice(0,500),output:r.output?.slice(0,4000)}:await uiReply(id,r)));const state=await attention(thread,true);for(const row of rows)if(row.uiReplies&&row.id!==state.pendingUiMessageId)row.uiReplies=[];return json(res,{...timeline,rows,thread:state,queue},200,req);
  }
  if(req.method==='GET'&&action==='delivery')return json(res,journal[q.get('id')]||{state:'missing'},200,req);
  if(req.method==='POST'&&action==='send')return json(res,await sendOnce(id,await body(req)),200,req);

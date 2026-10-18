@@ -28,3 +28,7 @@ body:has(.threadview){position:fixed;inset:0;height:100%;min-height:0;overflow:h
 
 .pocket-usage-tooltip{position:fixed;z-index:100;max-width:calc(100vw - 16px);padding:8px 10px;border:1px solid #f2c46d55;border-radius:8px;background:#25231e;color:#f2d49c;box-shadow:0 4px 20px #0006;font-size:12px;line-height:1.5;pointer-events:none}
 .pocket-usage-tooltip[hidden]{display:none}
+
+.pocket-ui-replies{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}.pocket-ui-replies button{white-space:normal;text-align:left;max-width:100%;min-height:44px}.pocket-ui-replies small{display:block;flex-basis:100%;opacity:.7}
+
+.pocket-genui{border:1px solid var(--line,#334039);border-radius:16px;padding:14px;overflow-wrap:anywhere}.pocket-genui>:first-child{margin-top:0}

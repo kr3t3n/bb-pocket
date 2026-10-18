@@ -1,3 +1,4 @@
+import {replyButtons,setupUiReplies} from './genui-client.js';
 import {createThreadUsage,threadUsageBadge,setupUsageBadgeTooltip} from './usage-limit.mjs';
 import {setupThreadSwipe} from './thread-swipe.js';
 import {setupViewport} from './viewport.js';
@@ -222,7 +223,7 @@ async function openThread(id){epoch++;threadId=id;threadData=null;olderRows=[];o
 const timeOf=t=>new Date(t).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
 function dayLabel(t){const d=new Date(t),today=new Date();const diff=Math.round((new Date(today.toDateString())-new Date(d.toDateString()))/86400000);return diff===0?'Today':diff===1?'Yesterday':d.toLocaleDateString(undefined,{weekday:diff<7?'long':undefined,month:'short',day:'numeric'})}
 function rowHtml(r,provider){
- if(r.kind==='conversation'){const user=r.role==='user';return `<article class="message ${user?'user':'assistant'}" id="row-${esc(r.id)}">${user?'':`<header><span class="who">${providerMark(provider)}${esc(providerName(provider))}</span><time>${timeOf(r.createdAt)}</time></header>`}<div class="prose">${md(r.text)}</div>${r.attachments&&(r.attachments.localImages||r.attachments.localFiles||r.attachments.webImages)?`<p class="attachnote">${icon('clip')}Attachments available in BB</p>`:''}${user?`<time class="mtime">${timeOf(r.createdAt)}</time>`:''}</article>`}
+ if(r.kind==='conversation'){const user=r.role==='user';return `<article class="message ${user?'user':'assistant'}" id="row-${esc(r.id)}">${user?'':`<header><span class="who">${providerMark(provider)}${esc(providerName(provider))}</span><time>${timeOf(r.createdAt)}</time></header>`}<div class="prose${r.hasGenerativeUi?' pocket-genui':''}">${md(r.text)}${replyButtons(r)}</div>${r.attachments&&(r.attachments.localImages||r.attachments.localFiles||r.attachments.webImages)?`<p class="attachnote">${icon('clip')}Attachments available in BB</p>`:''}${user?`<time class="mtime">${timeOf(r.createdAt)}</time>`:''}</article>`}
  if(r.kind==='turn')return `<details class="activity"><summary>${icon('tool')}<span>${r.status==='completed'?'Turn completed':'Agent '+esc(r.status)} · ${r.summaryCount||0} activity items</span>${icon('chevron',2)}</summary><p class="muted">Open BB for the full tool transcript.</p></details>`;
  if(r.kind==='system')return `<details class="activity system"><summary>${icon('alert')}<span>${esc(r.title||r.systemKind||'Status')}</span>${icon('chevron',2)}</summary><pre>${esc(r.detail||'')}</pre></details>`;
  return `<details class="activity"><summary>${icon('tool')}<span>${esc(r.title||r.label||r.kind||'Agent activity')}</span>${icon('chevron',2)}</summary><pre>${esc(r.text||r.detail||r.status||'')}</pre></details>`;
@@ -232,7 +233,7 @@ function timelineHtml(rows,provider){let html='',group=[],lastDay='';const flush
 function deliveryHtml(){const p=pending[threadId];if(!p)return '';const state=p.state==='sent'?'sent':p.state==='sending'?'sending':p.state==='missing'?'missing':'unknown';const label={sent:'Sent to BB',sending:'Sending…',missing:'Not submitted. Your draft is saved.',unknown:'Delivery unconfirmed. Check the conversation before you send again.'}[state];return `<div class="delivery d-${state}"><p class="d-text">${esc(p.text.slice(0,160))}${p.attachmentNames?.length?' · '+esc(p.attachmentNames.join(', ')):''}</p><p class="d-state">${state==='sent'?icon('check',2):state==='sending'?'<span class="spinner"></span>':icon('alert')}${label}</p>${p.state!=='sending'?'<div class="d-actions"><button data-action="delivery">Check delivery</button><button data-action="dismissdelivery">Dismiss</button></div>':''}</div>`}
 function renderStrip(){const el=$('#threadstrip');if(!el)return;const t=threadData?.thread;let html='';
  if(connectionBad)html+=`<div class="strip offline">${icon('alert')}<span>${esc(connection)}</span><button data-action="refresh">Retry</button></div>`;
- if(t&&t.hasPendingInteraction)html+=`<div class="strip attention">${icon('alert')}<span>Your agent needs input.</span><a href="${bbUrl()}" target="_blank" rel="noopener">Open BB</a></div>`;
+ if(t&&t.hasPendingInteraction)html+=`<div class="strip attention">${icon('alert')}<span>${t.hasUiQuestion?'Choose an answer below.':'Your agent needs input.'}</span>${t.hasUiQuestion?'':`<a href="${bbUrl()}" target="_blank" rel="noopener">Open BB</a>`}</div>`;
  else if(t&&running(liveStatus(t)))html+=`<div class="strip working"><span class="pulse"></span><span>${liveStatus(t)==='stopping'?'Stopping…':'Agent is working…'}</span>${liveStatus(t)!=='stopping'?`<button data-action="stop">${icon('stop',2)}Stop</button>`:''}</div>`;
  if(el.innerHTML!==html)el.innerHTML=html}
 function renderThread(initial=false){if(!threadData||!threadId)return;const t=threadData.thread;const [state,label]=threadState({...t,status:liveStatus(t)});
@@ -298,7 +299,7 @@ let lastY=0;window.addEventListener('scroll',()=>{const y=window.scrollY;documen
 
 window.addEventListener('popstate',handleRoute);window.addEventListener('hashchange',()=>{if(location.hash.startsWith('#share?'))handleRoute()});window.addEventListener('online',()=>{syncText('Reconnecting');refresh()});window.addEventListener('offline',()=>syncText('Offline · saved',true));document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh()});window.addEventListener('pageshow',e=>{if(e.persisted)refresh()});
 // Track the visual viewport so the composer stays above the iOS keyboard.
-setupViewport();
+setupViewport();setupUiReplies();
 setupThreadSwipe({toast,markThread:async (id,action)=>{await api(`thread/${id}/action`,{action});if(!threadId){data=null;await loadHome()}}});
 async function tick(){if(!document.hidden){refreshUsage();try{if(threadId)await refreshThread();else if(!route.startsWith('task/')&&tab!=='projects'&&!document.querySelector('.pocket-swipe-visible,.pocket-swipe-dragging'))await loadHome()}catch{}}pollTimer=setTimeout(tick,threadId?3000:15000)}
 async function init(){meta=await get('meta')||meta;usage=await get('usage');if(usage)usage={...usage,stale:true};handleRoute();refreshUsage(true);await refreshMeta();tick();if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{})}init();
